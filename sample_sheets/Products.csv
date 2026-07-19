@@ -1,0 +1,3 @@
+ProductID,Name,Category,Brand,Description,Price,OfferPrice,Discount,Stock,Rating,Image1,Image2,Image3,Image4,Featured,Active,CreatedDate
+P001,Sample Phone,Mobile,BrandX,"A great phone",9999,8999,10,50,4.5,https://via.placeholder.com/400,,,,,TRUE,TRUE,2026-07-18
+P002,Sample Earbuds,Audio,BrandY,"Comfortable earbuds",1999,1499,25,120,4.2,https://via.placeholder.com/400,,,,,FALSE,TRUE,2026-07-18
