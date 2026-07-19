@@ -1,0 +1,332 @@
+/* ── Tailwind v4 bootstrap ──────────────────────────────────── */
+/* @config must come first; @import "tailwindcss" replaces the   */
+/* three legacy @tailwind directives and works with v4 PostCSS.  */
+@config "../tailwind.config.cjs";
+@import "tailwindcss";
+
+/*
+ * @theme registers values as both:
+ *   • CSS custom properties at :root
+ *   • Tailwind utility class generators  (bg-accent, shadow-card, etc.)
+ * This is the only way in v4 to make custom utilities from a JS config.
+ */
+@theme {
+  /* ── Colors ───────────────────────────────────────────────── */
+  --color-accent:       #2563EB;
+  --color-accent-dark:  #1d4ed8;
+  --color-accent-soft:  #EFF6FF;
+  --color-success:      #10B981;
+  --color-danger:       #EF4444;
+  --color-warning:      #F59E0B;
+  --color-primary:      #0F172A;
+  --color-muted:        #64748B;
+
+  /* ── Shadows ──────────────────────────────────────────────── */
+  --shadow-card:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-hover:  0 8px 32px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06);
+  --shadow-glow:   0 0 30px rgba(37,99,235,.22);
+  --shadow-accent: 0 4px 16px rgba(37,99,235,.28);
+
+  /* ── Border radius ────────────────────────────────────────── */
+  --radius-4xl: 2rem;
+  --radius-5xl: 2.5rem;
+
+  /* ── Typography ───────────────────────────────────────────── */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ── Keyframe animations ──────────────────────────────────── */
+  --animate-fade-up:    fade-up    0.6s cubic-bezier(0.16,1,0.3,1)     both;
+  --animate-fade-in:    fade-in    0.35s ease                           both;
+  --animate-pop:        pop        0.4s  cubic-bezier(0.22,1,0.36,1)   both;
+  --animate-float:      float      6s    ease-in-out                   infinite;
+  --animate-shimmer:    shimmer    1.8s  linear                        infinite;
+  --animate-gradient:   gradient-x 4s    ease                          infinite;
+  --animate-pulse-ring: pulse-ring 2s    ease-out                      infinite;
+  --animate-spin-slow:  spin       1.2s  linear                        infinite;
+}
+
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --accent: #2563EB;
+  --accent-light: #3B82F6;
+  --accent-soft: #EFF6FF;
+  --success: #10B981;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+  --border: #E2E8F0;
+  --radius: 16px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  --shadow-xl: 0 20px 60px rgba(0,0,0,0.16);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+html {
+  scroll-behavior: smooth;
+}
+
+html, body, #__next {
+  min-height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--text);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+.safe-area { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translate3d(0, 24px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pop {
+  0%   { opacity: 0; transform: scale(0.94); }
+  60%  { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(37,99,235,0.35); }
+  70%  { box-shadow: 0 0 0 10px rgba(37,99,235,0); }
+  100% { box-shadow: 0 0 0 0   rgba(37,99,235,0); }
+}
+
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ============================================================
+   ANIMATION UTILITY CLASSES
+   ============================================================ */
+
+.animate-fade-up {
+  animation: fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 350ms ease both;
+}
+
+.animate-pop {
+  animation: pop 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-image: linear-gradient(
+    105deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.55) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 1.2s linear infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-x 4s ease infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.animate-ticker {
+  display: flex;
+  width: max-content;
+  animation: ticker 28s linear infinite;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Stagger helpers */
+.stagger-1 { animation-delay: 50ms;  }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+/* ============================================================
+   COMPONENT CLASSES
+   ============================================================ */
+
+/* --- Buttons --- */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+  text-decoration: none;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(37,99,235,0.45);
+}
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 24px;
+  border-radius: 9999px;
+  background: transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+  text-decoration: none;
+}
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-1px);
+}
+
+/* --- Inputs --- */
+.input-field {
+  width: 100%;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 14px;
+  background: #F8FAFC;
+  padding: 13px 16px;
+  font-size: 0.875rem;
+  color: #0F172A;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.input-field:focus {
+  border-color: #2563EB;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+.input-field::placeholder {
+  color: #94A3B8;
+}
+
+/* --- Skeleton loader --- */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+  border-radius: 8px;
+}
+
+/* --- Glass --- */
+.glass {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.glass-dark {
+  background: rgba(15,23,42,0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

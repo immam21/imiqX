@@ -1,0 +1,2 @@
+OrderID,Date,CustomerName,CustomerMobile,FullAddress,ProductsJSON,Subtotal,DeliveryCharge,GrandTotal,OrderStatus,WhatsAppSent
+O001,2026-07-18,John Doe,919999999999,"Door 1, Street, City","[{\"name\":\"Sample Phone\",\"qty\":1,\"price\":8999}]",8999,40,9039,Pending,FALSE

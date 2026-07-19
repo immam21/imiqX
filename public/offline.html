@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563EB" />
+  <title>You're offline — Crazy Shopperz</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #2563EB;
+      --accent-dk: #1d4ed8;
+      --bg:        #F8FAFC;
+      --surface:   #FFFFFF;
+      --text:      #0F172A;
+      --muted:     #64748B;
+      --border:    #E2E8F0;
+      --success:   #10B981;
+    }
+
+    html { height: 100%; }
+
+    body {
+      min-height: 100%;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 24px;
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 40px 32px 36px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 24px rgba(0,0,0,.06);
+    }
+
+    /* Animated wifi icon */
+    .icon-wrap {
+      width: 80px;
+      height: 80px;
+      background: #EFF6FF;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .icon-wrap svg { color: var(--accent); }
+
+    h1 {
+      font-size: 1.625rem;
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.15;
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      font-size: .9375rem;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+
+    /* Retry button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 28px;
+      padding: 14px 28px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dk));
+      color: #fff;
+      font-size: .875rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 4px 14px rgba(37,99,235,.35);
+      width: 100%;
+    }
+    .btn:hover   { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.45); }
+    .btn:active  { transform: translateY(0); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Cached page links */
+    .links { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      color: #374151;
+      font-size: .875rem;
+      font-weight: 500;
+      transition: background .15s, border-color .15s;
+    }
+    .link:hover { background: #EFF6FF; border-color: #BFDBFE; }
+    .link-icon { font-size: 1.125rem; }
+
+    /* Status badge */
+    .status {
+      margin-top: 20px;
+      font-size: .8125rem;
+      color: #94A3B8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #F59E0B;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .dot.online { background: var(--success); animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: .4; transform: scale(.8); }
+    }
+
+    /* Online banner (hidden by default) */
+    #online-banner {
+      display: none;
+      position: fixed;
+      inset-x: 16px;
+      top: 16px;
+      padding: 12px 20px;
+      background: var(--success);
+      color: #fff;
+      border-radius: 14px;
+      font-size: .875rem;
+      font-weight: 700;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(16,185,129,.4);
+      animation: slideDown .3s ease;
+      z-index: 9999;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-20px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 32px 20px 28px; border-radius: 24px; }
+      h1 { font-size: 1.375rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="online-banner">✅ Back online! Redirecting…</div>
+
+  <div class="card" role="main">
+    <div class="icon-wrap" aria-hidden="true">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <circle cx="12" cy="20" r="1" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <h1>You're offline</h1>
+    <p class="subtitle">
+      No internet connection detected.<br />
+      Check your network and try again.
+    </p>
+
+    <button class="btn" id="retry-btn" onclick="handleRetry()" aria-label="Retry connection">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+      </svg>
+      Try again
+    </button>
+
+    <div class="divider">Available offline</div>
+
+    <nav class="links" aria-label="Cached pages">
+      <a href="/" class="link">
+        <span class="link-icon" aria-hidden="true">🏠</span>
+        Home
+      </a>
+      <a href="/search" class="link">
+        <span class="link-icon" aria-hidden="true">🔍</span>
+        Browse Products
+      </a>
+      <a href="/cart" class="link">
+        <span class="link-icon" aria-hidden="true">🛒</span>
+        Your Cart
+      </a>
+    </nav>
+
+    <p class="status" id="status-msg" aria-live="polite">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Waiting for connection…</span>
+    </p>
+  </div>
+
+  <script>
+    // ── Retry ──────────────────────────────────────────────
+    function handleRetry() {
+      if (navigator.onLine) {
+        goOnline();
+      } else {
+        const btn = document.getElementById('retry-btn');
+        btn.disabled = true;
+        btn.textContent = 'Still offline…';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>
+            Try again`;
+        }, 2500);
+      }
+    }
+
+    function goOnline() {
+      const banner = document.getElementById('online-banner');
+      banner.style.display = 'block';
+      const dot = document.getElementById('status-dot');
+      dot.classList.add('online');
+      document.getElementById('status-text').textContent = 'Connection restored!';
+      setTimeout(() => { window.location.href = '/'; }, 1200);
+    }
+
+    // ── Connection listeners ────────────────────────────────
+    window.addEventListener('online',  () => goOnline());
+    window.addEventListener('offline', () => {
+      document.getElementById('status-text').textContent = 'Still no connection…';
+    });
+
+    // ── Redirect immediately if already online ──────────────
+    if (navigator.onLine) {
+      window.location.replace('/');
+    }
+  </script>
+</body>
+</html>
