@@ -1,15 +1,64 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { toRenderableAssetUrl } from '../../lib/assetUrl'
 
 interface FooterProps {
   businessName: string
+  businessAddress?: string
   initials: string
+  logo?: string
   whatsappNumber?: string
+  instagramUrl?: string
+  facebookUrl?: string
+  youtubeUrl?: string
+  routePrefix?: string
 }
 
-export default function Footer({ businessName, initials, whatsappNumber }: FooterProps) {
+function SocialIcon({ name }: { name: 'instagram' | 'facebook' | 'youtube' }) {
+  if (name === 'instagram') {
+    return (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5a4.25 4.25 0 0 0 4.25 4.25h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5a4.25 4.25 0 0 0-4.25-4.25h-8.5z"/>
+        <path d="M12 7.25A4.75 4.75 0 1 1 7.25 12 4.76 4.76 0 0 1 12 7.25zm0 1.5A3.25 3.25 0 1 0 15.25 12 3.25 3.25 0 0 0 12 8.75z"/>
+        <circle cx="17.2" cy="6.8" r="1.1" />
+      </svg>
+    )
+  }
+
+  if (name === 'facebook') {
+    return (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path d="M13.5 22v-8h2.7l.4-3h-3.1V8.7c0-.9.3-1.5 1.6-1.5H16.8V4.5c-.4 0-1.5-.1-2.7-.1-2.7 0-4.6 1.7-4.6 4.8V11H6.6v3h2.9v8h4z"/>
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M21.8 8.2s-.2-1.4-.8-2c-.8-.9-1.7-.9-2.1-1C16.1 5 12 5 12 5s-4.1 0-6.9.2c-.4 0-1.3 0-2.1 1-.6.6-.8 2-.8 2S2 9.8 2 11.5v1c0 1.7.2 3.3.2 3.3s.2 1.4.8 2c.8.9 1.9.8 2.4.9 1.8.2 7.6.2 7.6.2s4.1 0 6.9-.2c.4 0 1.3 0 2.1-1 .6-.6.8-2 .8-2s.2-1.6.2-3.3v-1c0-1.7-.2-3.3-.2-3.3zM10 14.8V9.2l5.6 2.8L10 14.8z"/>
+    </svg>
+  )
+}
+
+export default function Footer({ businessName, businessAddress, initials, logo, whatsappNumber, instagramUrl, facebookUrl, youtubeUrl, routePrefix = '' }: FooterProps) {
+  const route = (path: string) => `${routePrefix}${path}`
   const year = new Date().getFullYear()
+  const [logoFailed, setLogoFailed] = useState(false)
+  const normalizedLogo = toRenderableAssetUrl(logo)
+
+  useEffect(() => {
+    setLogoFailed(false)
+  }, [normalizedLogo])
+
+  const phone = String(whatsappNumber || '').replace(/\D/g, '')
+  const phoneDisplay = phone ? `+${phone}` : ''
+  const socialLinks = [
+    { key: 'instagram', url: instagramUrl, label: 'Instagram', className: 'hover:text-[#E1306C]' },
+    { key: 'facebook', url: facebookUrl, label: 'Facebook', className: 'hover:text-[#1877F2]' },
+    { key: 'youtube', url: youtubeUrl, label: 'YouTube', className: 'hover:text-[#FF0000]' },
+  ].filter((item) => String(item.url || '').trim()) as Array<{ key: 'instagram' | 'facebook' | 'youtube'; url: string; label: string; className: string }>
 
   return (
     <footer className="bg-slate-900 text-slate-400">
@@ -20,10 +69,25 @@ export default function Footer({ businessName, initials, whatsappNumber }: Foote
           {/* Brand column */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB] to-blue-700 text-sm font-extrabold text-white shadow-md">
-                {initials}
+              {normalizedLogo && !logoFailed ? (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-md">
+                  <img
+                    src={normalizedLogo}
+                    alt={businessName}
+                    className="h-full w-full object-contain"
+                    onError={() => setLogoFailed(true)}
+                  />
+                </div>
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB] to-blue-700 text-sm font-extrabold text-white shadow-md">
+                  {initials}
+                </div>
+              )}
+              <div>
+                <p className="text-[15px] font-bold text-white">{businessName}</p>
+                {businessAddress && <p className="mt-0.5 text-xs text-slate-400">{businessAddress}</p>}
+                {phoneDisplay && <p className="mt-0.5 text-xs text-slate-400">Phone: {phoneDisplay}</p>}
               </div>
-              <span className="text-[15px] font-bold text-white">{businessName}</span>
             </div>
             <p className="mt-4 max-w-xs text-sm leading-6">
               Premium products, always in stock, with seamless WhatsApp checkout. No account needed.
@@ -43,16 +107,34 @@ export default function Footer({ businessName, initials, whatsappNumber }: Foote
                 Chat on WhatsApp
               </a>
             )}
+
+            {socialLinks.length > 0 && (
+              <div className="mt-4 flex items-center gap-2">
+                {socialLinks.map((item) => (
+                  <a
+                    key={item.key}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={item.label}
+                    title={item.label}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-slate-300 transition ${item.className}`}
+                  >
+                    <SocialIcon name={item.key} />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Shop links */}
           <div>
             <h4 className="mb-4 text-sm font-bold text-white">Shop</h4>
             <ul className="space-y-2.5 text-sm">
-              <li><Link href="/search" className="transition hover:text-white">All Products</Link></li>
-              <li><Link href="/search" className="transition hover:text-white">New Arrivals</Link></li>
-              <li><Link href="/search" className="transition hover:text-white">Best Sellers</Link></li>
-              <li><Link href="/search" className="transition hover:text-white">Deals &amp; Offers</Link></li>
+              <li><Link href={route('/search')} className="transition hover:text-white">All Products</Link></li>
+              <li><Link href={route('/search')} className="transition hover:text-white">New Arrivals</Link></li>
+              <li><Link href={route('/search')} className="transition hover:text-white">Best Sellers</Link></li>
+              <li><Link href={route('/search')} className="transition hover:text-white">Deals &amp; Offers</Link></li>
             </ul>
           </div>
 
@@ -66,7 +148,7 @@ export default function Footer({ businessName, initials, whatsappNumber }: Foote
                   : <span>Contact Us</span>
                 }
               </li>
-              <li><Link href="/track-order" className="transition hover:text-white">Track Order</Link></li>
+              <li><Link href={route('/track-order')} className="transition hover:text-white">Track Order</Link></li>
               <li><span className="cursor-default">Returns &amp; Refunds</span></li>
               <li><span className="cursor-default">FAQ</span></li>
             </ul>
@@ -96,7 +178,7 @@ export default function Footer({ businessName, initials, whatsappNumber }: Foote
             <span className="cursor-default transition hover:text-white">Privacy Policy</span>
             <span className="cursor-default transition hover:text-white">Terms of Service</span>
             <span className="flex items-center gap-1 text-slate-500">
-              Made with ❤️ in India
+              Powered by <span className="font-semibold text-slate-300">ImiqX Platform</span>
             </span>
           </div>
         </div>

@@ -1,20 +1,27 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 import { Search, ShoppingCart, Menu, X, Download, PackageSearch } from 'lucide-react'
 import { useCart } from '../../hooks/useCart'
+import { toRenderableAssetUrl } from '../../lib/assetUrl'
 
 interface HeaderProps {
   initials: string
   businessName: string
   logo: string
+  routePrefix?: string
   announcementMessages?: string[]
 }
 
-export default function Header({ initials, businessName, logo, announcementMessages = [] }: HeaderProps) {
+export default function Header({ initials, businessName, logo, routePrefix = '', announcementMessages = [] }: HeaderProps) {
+  const route = (path: string) => `${routePrefix}${path}`
+  const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [logoFailed, setLogoFailed] = useState(false)
   const { totalItems } = useCart()
+  const normalizedLogo = toRenderableAssetUrl(logo)
 
   // ── PWA install prompt ────────────────────────────────────────────────────
   const [installPrompt, setInstallPrompt] = useState<any>(null)
@@ -38,6 +45,15 @@ export default function Header({ initials, businessName, logo, announcementMessa
     return () => window.removeEventListener('beforeinstallprompt', handler as EventListener)
   }, [])
 
+  useEffect(() => {
+    setLogoFailed(false)
+  }, [normalizedLogo])
+
+  useEffect(() => {
+    // Retry logo load on route changes in case previous request failed transiently.
+    setLogoFailed(false)
+  }, [pathname])
+
   const showInstall = mounted && !isStandalone
 
   const handleInstall = async () => {
@@ -56,19 +72,33 @@ export default function Header({ initials, businessName, logo, announcementMessa
   }
 
   const DEFAULT_ANNOUNCEMENTS = [
-    '⚡ Free delivery on orders over ₹999',
-    '🛍️ Premium products — always in stock',
-    '🔒 100% authentic, sourced & verified',
-    '🚀 Fast 1–3 day delivery to your door',
+    '⚡ Fast dispatch on trusted orders',
+    '🛡️ Protected checkout with secure payment flow',
+    '✅ 100% authentic products from verified sources',
+    '🚚 Reliable 1-3 day delivery updates',
   ]
-  const msgs = announcementMessages.length > 0 ? announcementMessages : DEFAULT_ANNOUNCEMENTS
+
+  const sanitizeAnnouncement = (value: string) => value
+    .replace(/\btenant-?isolated storefront\b/gi, 'secure storefront')
+    .replace(/\bstore-?isolated storefront\b/gi, 'secure storefront')
+    .replace(/\btenant\b/gi, 'store')
+    .replace(/\bsupabase\b/gi, '')
+    .replace(/\bvercel\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  const customAnnouncements = announcementMessages
+    .map((msg) => sanitizeAnnouncement(msg))
+    .filter((msg) => msg.length > 0)
+    .slice(0, 4)
+  const msgs = customAnnouncements.length > 0 ? customAnnouncements : DEFAULT_ANNOUNCEMENTS
   // doubled for seamless infinite loop
   const tickerItems = [...msgs, ...msgs]
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
-      {/* Sliding announcement ticker */}
-      <div className="overflow-hidden bg-gradient-to-r from-accent to-blue-600 py-2 text-xs font-medium text-white select-none">
+      {/* Keep ticker HTML deterministic between SSR and hydration. */}
+      <div className="min-h-[30px] overflow-hidden bg-gradient-to-r from-cyan-600 via-blue-600 to-teal-600 py-2 text-xs font-medium text-white select-none">
         <div className="animate-ticker">
           {tickerItems.map((msg, i) => (
             <span key={i} className="flex items-center whitespace-nowrap">
@@ -80,34 +110,50 @@ export default function Header({ initials, businessName, logo, announcementMessa
       </div>
 
       {/* Main nav */}
-      <nav className="border-b border-slate-200/60 bg-white/95 backdrop-blur-xl shadow-sm">
-        <div className="mx-auto flex h-[60px] max-w-7xl items-center gap-3 px-4 sm:px-6 lg:gap-6">
+      <nav className="border-b border-cyan-100/70 bg-white/82 backdrop-blur-xl shadow-[0_10px_30px_rgba(14,116,144,0.10)]">
+        <div className="mx-auto flex min-h-[72px] max-w-7xl items-center gap-3 px-4 py-2 sm:px-6 lg:gap-6">
 
           {/* Logo */}
-          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Home">
-            {logo ? (
-              <img src={logo} alt={businessName} className="h-9 w-9 rounded-xl object-cover" />
+          <Link href={route('/')} className="flex shrink-0 items-center gap-3 rounded-2xl px-1 py-1" aria-label="Home">
+            {normalizedLogo && !logoFailed ? (
+              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-cyan-100 bg-white shadow-[0_10px_24px_rgba(14,116,144,0.14)]">
+                <img
+                  src={normalizedLogo}
+                  alt={businessName}
+                  className="h-full w-full object-contain"
+                  onError={() => setLogoFailed(true)}
+                />
+              </div>
             ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-blue-700 text-sm font-extrabold text-white shadow-md shadow-accent/30">
+              <div
+                className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-500 via-blue-600 to-teal-500 text-sm font-extrabold text-white shadow-md shadow-cyan-500/30"
+                title="Upload your brand logo in Admin Settings to replace this placeholder"
+              >
                 {initials}
+                <span className="absolute -bottom-1.5 -right-1.5 rounded-full border border-white bg-slate-900 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white">
+                  logo
+                </span>
               </div>
             )}
-            <div className="hidden sm:block leading-none">
-              <div className="text-[15px] font-bold text-slate-900">{businessName}</div>
+            <div className="leading-none">
+              <div className="max-w-[170px] truncate text-[13px] font-bold text-slate-900 sm:max-w-none sm:text-[15px]">{businessName}</div>
               <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-400">Official Store</div>
             </div>
           </Link>
 
           {/* Desktop nav links */}
           <div className="hidden lg:flex items-center gap-0.5 text-sm ml-2">
-            <Link href="/" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <Link href={route('/')} className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               Home
             </Link>
-            <Link href="/search" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <Link href={route('/search')} className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               Products
             </Link>
-            <Link href="/track-order" className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <Link href={route('/track-order')} className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               Track Order
+            </Link>
+            <Link href={route('/admin')} className="rounded-lg px-3 py-2 font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              Store Access
             </Link>
           </div>
 
@@ -140,7 +186,7 @@ export default function Header({ initials, businessName, logo, announcementMessa
 
             {/* Mobile search */}
             <Link
-              href="/search"
+              href={route('/search')}
               aria-label="Search"
               className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-accent md:hidden"
             >
@@ -149,7 +195,7 @@ export default function Header({ initials, businessName, logo, announcementMessa
 
             {/* Cart */}
             <Link
-              href="/cart"
+              href={route('/cart')}
               aria-label={`View cart${totalItems ? ` (${totalItems} items)` : ''}`}
               className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-accent"
             >
@@ -177,10 +223,11 @@ export default function Header({ initials, businessName, logo, announcementMessa
           <div className="border-t border-slate-100 bg-white px-4 py-3 lg:hidden">
             <nav className="space-y-0.5">
               {[
-                { label: 'Home', href: '/', icon: null },
-                { label: 'All Products', href: '/search', icon: null },
-                { label: 'Track Order', href: '/track-order', icon: <PackageSearch size={16} /> },
-                { label: 'Cart', href: '/cart', icon: <ShoppingCart size={16} /> },
+                { label: 'Home', href: route('/'), icon: null },
+                { label: 'All Products', href: route('/search'), icon: null },
+                { label: 'Track Order', href: route('/track-order'), icon: <PackageSearch size={16} /> },
+                { label: 'Cart', href: route('/cart'), icon: <ShoppingCart size={16} /> },
+                { label: 'Store Access', href: route('/admin'), icon: null },
               ].map(({ label, href, icon }) => (
                 <Link
                   key={href}

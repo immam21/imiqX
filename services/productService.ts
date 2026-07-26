@@ -1,174 +1,369 @@
-import * as gs from '../lib/googleSheets'
+import { getSupabaseAdmin } from '../lib/supabaseAdmin'
+import { getTenantRowFromRequest, getTenantSettings } from '../lib/tenantDb'
+import { getTenantConfig } from '../lib/tenant'
+import { toRenderableAssetUrl } from '../lib/assetUrl'
 
-const SHEET_ID = process.env.GSHEET_ID ?? ''
+function isTransientServiceError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const text = message.toLowerCase()
+  return (
+    text.includes('fetch failed') ||
+    text.includes('network') ||
+    text.includes('econn') ||
+    text.includes('enotfound') ||
+    text.includes('etimedout') ||
+    text.includes('tenant not found')
+  )
+}
 
-const sampleProducts = [
-  {
-    productId: 'P001',
-    name: 'Aero Fold Travel Kit',
-    brand: 'Glide',
-    category: 'Travel',
-    description: 'A lightweight travel kit with premium finishes and compact storage.',
-    price: 2199,
-    offerPrice: 1499,
-    discount: 32,
-    stock: 12,
-    rating: 4.7,
-    images: ['https://images.unsplash.com/photo-1528701800489-20f7c94402b8?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P002',
-    name: 'Luna Smart Earbuds',
-    brand: 'Nova',
-    category: 'Audio',
-    description: 'Noise-cancelling earbuds with active sound equalization and long battery life.',
-    price: 3999,
-    offerPrice: 2999,
-    discount: 25,
-    stock: 18,
-    rating: 4.6,
-    images: ['https://images.unsplash.com/photo-1512499617640-c2f999019a4a?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P003',
-    name: 'Serene Skin Ritual Kit',
-    brand: 'Bloom',
-    category: 'Beauty',
-    description: 'Daily essentials for a glowing, balanced skincare routine.',
-    price: 2399,
-    offerPrice: 1799,
-    discount: 25,
-    stock: 23,
-    rating: 4.8,
-    images: ['https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P004',
-    name: 'Café Aroma Coffee Set',
-    brand: 'BrewLab',
-    category: 'Kitchen',
-    description: 'A curated coffee kit for fresh brews and premium mornings.',
-    price: 2899,
-    offerPrice: 2199,
-    discount: 24,
-    stock: 16,
-    rating: 4.5,
-    images: ['https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P005',
-    name: 'Stellar Yoga Mat',
-    brand: 'ZenMotion',
-    category: 'Wellness',
-    description: 'A cushioned yoga mat built for grip, comfort, and everyday flow.',
-    price: 1799,
-    offerPrice: 1299,
-    discount: 28,
-    stock: 21,
-    rating: 4.9,
-    images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P006',
-    name: 'Aurora Desk Lamp',
-    brand: 'Lume',
-    category: 'Home',
-    description: 'A minimalist desk lamp with warm mood lighting and touch controls.',
-    price: 1399,
-    offerPrice: 999,
-    discount: 29,
-    stock: 14,
-    rating: 4.6,
-    images: ['https://images.unsplash.com/photo-1496317556649-f930d733eea2?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P007',
-    name: 'Pulse Fitness Tracker',
-    brand: 'Stride',
-    category: 'Wearables',
-    description: 'Track every workout with easy stats, sleep insights, and a crisp display.',
-    price: 2999,
-    offerPrice: 2199,
-    discount: 26,
-    stock: 9,
-    rating: 4.4,
-    images: ['https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?auto=format&fit=crop&w=900&q=80']
-  },
-  {
-    productId: 'P008',
-    name: 'Breeze Outdoor Chair',
-    brand: 'Haven',
-    category: 'Outdoor',
-    description: 'A lounge chair with breathable weave and weather-resistant detailing.',
-    price: 3399,
-    offerPrice: 2599,
-    discount: 23,
-    stock: 11,
-    rating: 4.5,
-    images: ['https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=80']
+async function withTransientRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error
+      if (!isTransientServiceError(error) || index === attempts - 1) {
+        throw error
+      }
+    }
   }
-]
 
-export async function fetchProducts() {
-  if (!SHEET_ID) return []
+  throw lastError instanceof Error ? lastError : new Error(String(lastError || 'Unknown service error'))
+}
 
-  const rows = await gs.readSheetRows(SHEET_ID, 'Products')
-  const products = rows.map((r: any) => ({
-    productId: r[0] ?? r.ProductID,
-    name: r[1] ?? r.Name,
-    category: r[2] ?? r.Category,
-    brand: r[3] ?? r.Brand,
-    description: r[4] ?? r.Description,
-    price: Number(r[5] ?? r.Price) || 0,
-    offerPrice: Number(r[6] ?? r.OfferPrice) || 0,
-    discount: Number(r[7] ?? r.Discount) || 0,
-    stock: Number(r[8] ?? r.Stock) || 0,
-    rating: Number(r[9] ?? r.Rating) || 0,
-    images: [r[10], r[11], r[12], r[13]].filter(Boolean)
-  }))
+function asArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean)
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v)).filter(Boolean)
+    } catch {}
+    return value ? [value] : []
+  }
+  return []
+}
 
-  return products
+function mapProduct(row: any) {
+  const images = asArray(row.image_urls).map((image) => toRenderableAssetUrl(image)).filter(Boolean)
+  return {
+    productId: row.sid || row.product_code || row.id,
+    name: row.name || '',
+    category: row.category_name || '',
+    brand: row.brand || '',
+    description: row.description || '',
+    price: Number(row.price || 0),
+    offerPrice: Number(row.offer_price || 0),
+    discount: Number(row.discount_percent || 0),
+    stock: Number(row.stock || 0),
+    rating: Number(row.rating_avg || 0),
+    images,
+  }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+async function findProductRowByAnyId(supabase: any, tenantId: string, productId: string, select = '*') {
+  const textId = String(productId || '').trim()
+
+  const byText = await supabase
+    .from('products')
+    .select(select)
+    .eq('tenant_id', tenantId)
+    .or(`sid.eq.${textId},product_code.eq.${textId},slug.eq.${textId}`)
+    .limit(1)
+    .maybeSingle()
+
+  if (byText.error) throw new Error(byText.error.message)
+  if (byText.data) return byText.data
+
+  if (!isUuid(textId)) return null
+
+  const byUuid = await supabase
+    .from('products')
+    .select(select)
+    .eq('tenant_id', tenantId)
+    .eq('id', textId)
+    .limit(1)
+    .maybeSingle()
+
+  if (byUuid.error) throw new Error(byUuid.error.message)
+  return byUuid.data || null
+}
+
+async function getTenantDb() {
+  const supabase = getSupabaseAdmin()
+  const tenant = await getTenantRowFromRequest()
+  return { supabase, tenant }
+}
+
+async function loadTenantProducts(supabase: any, tenantId: string) {
+  // Primary path: active products, while allowing legacy rows with null is_active.
+  let query = await supabase
+    .from('products')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .or('is_active.eq.true,is_active.is.null')
+    .order('created_at', { ascending: false })
+
+  if (!query.error) return query
+
+  const firstMessage = String(query.error.message || '')
+
+  // Compatibility: some deployments may miss is_active and/or created_at columns.
+  if (/column .*is_active.* does not exist|column .*created_at.* does not exist/i.test(firstMessage)) {
+    query = await supabase
+      .from('products')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+
+    if (!query.error) return query
+
+    const secondMessage = String(query.error.message || '')
+    if (/column .*created_at.* does not exist/i.test(secondMessage)) {
+      query = await supabase
+        .from('products')
+        .select('*')
+        .eq('tenant_id', tenantId)
+    }
+  }
+
+  return query
+}
+
+export async function fetchProducts(_tenantKey?: string) {
+  try {
+    const { data, error } = await withTransientRetry(async () => {
+      const { supabase, tenant } = await getTenantDb()
+      return loadTenantProducts(supabase, tenant.id)
+    })
+
+    if (error) throw new Error(error.message)
+    return (data || []).map(mapProduct)
+  } catch (error) {
+    console.error('fetchProducts failed:', error)
+    return []
+  }
 }
 
 export default { fetchProducts }
 
-export async function fetchProductById(id: string) {
-  const products = await fetchProducts()
-  return products.find((p: any) => p.productId === id || p.productId === String(id)) || null
+export async function fetchProductById(id: string, _tenantKey?: string) {
+  try {
+    const { supabase, tenant } = await getTenantDb()
+    const data = await findProductRowByAnyId(supabase, tenant.id, id, '*')
+    return data ? mapProduct(data) : null
+  } catch {
+    return null
+  }
 }
 
-export async function searchProducts(query: string) {
-  const q = (query || '').toLowerCase()
+export async function searchProducts(query: string, _tenantKey?: string) {
+  const q = (query || '').trim()
   if (!q) return []
-  const products = await fetchProducts()
-  return products.filter((p: any) => (p.name || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q))
+
+  try {
+    const queryRes = await withTransientRetry(async () => {
+      const { supabase, tenant } = await getTenantDb()
+      let result = await supabase
+        .from('products')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .or('is_active.eq.true,is_active.is.null')
+        .or(`name.ilike.%${q}%,brand.ilike.%${q}%,category_name.ilike.%${q}%`)
+        .order('created_at', { ascending: false })
+
+      if (result.error && /column .*is_active.* does not exist|column .*created_at.* does not exist/i.test(String(result.error.message || ''))) {
+        result = await supabase
+          .from('products')
+          .select('*')
+          .eq('tenant_id', tenant.id)
+          .or(`name.ilike.%${q}%,brand.ilike.%${q}%,category_name.ilike.%${q}%`)
+          .order('created_at', { ascending: false })
+      }
+
+      if (result.error && /column .*created_at.* does not exist/i.test(String(result.error.message || ''))) {
+        result = await supabase
+          .from('products')
+          .select('*')
+          .eq('tenant_id', tenant.id)
+          .or(`name.ilike.%${q}%,brand.ilike.%${q}%,category_name.ilike.%${q}%`)
+      }
+
+      return result
+    })
+
+    if (queryRes.error) throw new Error(queryRes.error.message)
+    return (queryRes.data || []).map(mapProduct)
+  } catch (error) {
+    console.error('searchProducts failed:', error)
+    return []
+  }
 }
 
-/**
- * Reads the "Settings" sheet (Key/Value columns) and returns
- * offer-banner fields used by LeadsPopup. Falls back to empty strings
- * so the component defaults kick in if the sheet isn't configured yet.
- */
-export async function fetchSettings(): Promise<{
+export async function fetchSettings(_tenantKey?: string): Promise<{
+  businessName: string
+  businessAddress: string
+  whatsappNumber: string
+  themePreset: string
   offerLabel: string
   offerTitle: string
   offerSubtitle: string
   announcementMessages: string[]
   deliveryCharge: number
+  logoUrl: string
 }> {
-  const empty = { offerLabel: '', offerTitle: '', offerSubtitle: '', announcementMessages: [] as string[], deliveryCharge: 40 }
-  if (!SHEET_ID) return empty
-  const kv = await gs.readSheetKeyValues(SHEET_ID, 'Settings')
-  const rawBar = kv['AnnouncementBar'] ?? ''
-  const announcementMessages = rawBar
-    ? rawBar.split('|').map((s) => s.trim()).filter(Boolean)
-    : []
-  return {
-    offerLabel:          kv['OfferLabel']    ?? '',
-    offerTitle:          kv['OfferTitle']    ?? '',
-    offerSubtitle:       kv['OfferSubtitle'] ?? '',
-    announcementMessages,
-    deliveryCharge:      Number(kv['DeliveryCharge']) || 40,
+  try {
+    const { tenant } = await getTenantDb()
+    const kv = await getTenantSettings(tenant.id)
+    const rawBar = kv['AnnouncementBar'] ?? ''
+    const announcementMessages = rawBar
+      ? rawBar.split('|').map((s) => s.trim()).filter(Boolean)
+      : []
+
+    return {
+      businessName: kv['BusinessName'] ?? '',
+      businessAddress: kv['Address'] ?? '',
+      whatsappNumber: kv['WhatsAppNumber'] ?? '',
+      themePreset: kv['ThemePreset'] ?? 'classic',
+      offerLabel: kv['OfferLabel'] ?? '',
+      offerTitle: kv['OfferTitle'] ?? '',
+      offerSubtitle: kv['OfferSubtitle'] ?? '',
+      announcementMessages,
+      deliveryCharge: Number(kv['DeliveryCharge']) || Number(tenant.default_delivery_charge || 40),
+      logoUrl: toRenderableAssetUrl(kv['LogoURL'] || ''),
+    }
+  } catch {
+    return {
+      businessName: '',
+      businessAddress: '',
+      whatsappNumber: '',
+      themePreset: 'classic',
+      offerLabel: '',
+      offerTitle: '',
+      offerSubtitle: '',
+      announcementMessages: [],
+      deliveryCharge: 40,
+      logoUrl: '',
+    }
+  }
+}
+
+export async function fetchBanners(_tenantKey?: string) {
+  try {
+    const { supabase, tenant } = await getTenantDb()
+    const { data, error } = await supabase
+      .from('banners')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (error) return []
+
+    const businessName = String(tenant.business_name || tenant.tenant_code || 'Our store').trim()
+
+    return (data || [])
+      .map((r: any) => ({
+        bannerId: String(r.sid || r.id || '').trim(),
+        title: String(r.title || `Discover ${businessName}`).trim(),
+        subtitle: String(r.subtitle || '').trim() || undefined,
+        imageUrl: toRenderableAssetUrl(String(r.image_url || '').trim()),
+        linkUrl: String(r.link_url || '').trim() || undefined,
+        buttonText: String(r.button_text || '').trim() || undefined,
+      }))
+      .filter((b: any) => b.imageUrl)
+  } catch {
+    return []
+  }
+}
+
+export async function fetchReviews(productId: string, _tenantKey?: string) {
+  try {
+    const { supabase, tenant } = await getTenantDb()
+
+    const product = await findProductRowByAnyId(supabase, tenant.id, productId, 'id')
+
+    if (!product?.id) return []
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .eq('product_id', product.id)
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+
+    if (error) return []
+
+    return (data || []).map((r: any) => ({
+      reviewId: String(r.sid || r.id || '').trim(),
+      productId,
+      name: String(r.customer_name || '').trim(),
+      rating: Math.min(5, Math.max(1, Number(r.rating || 5) || 5)),
+      review: String(r.review || '').trim(),
+      date: r.created_at || undefined,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export async function addReview(input: { productId: string; name: string; rating: number; review: string }) {
+  const { supabase, tenant } = await getTenantDb()
+  const { productId, name, rating, review } = input
+
+  const product = await findProductRowByAnyId(supabase, tenant.id, productId, 'id')
+
+  if (!product?.id) throw new Error('Product not found')
+
+  const reviewSid = `R${Date.now().toString().slice(-4)}`
+  const { error } = await supabase.from('reviews').insert({
+    sid: reviewSid.length <= 5 ? reviewSid : null,
+    tenant_id: tenant.id,
+    product_id: product.id,
+    customer_name: String(name).slice(0, 100),
+    rating: Math.min(5, Math.max(1, Number(rating))),
+    review: String(review).slice(0, 1000),
+    is_approved: true,
+  })
+
+  if (error) throw new Error(error.message)
+}
+
+export async function validateCoupon(code: string, _tenantKey?: string) {
+  if (!code) return null
+  try {
+    const { supabase, tenant } = await getTenantDb()
+
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .ilike('code', code.toUpperCase())
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !data) return null
+    if (data.is_active === false) return null
+
+    if (data.expires_at) {
+      const exp = new Date(data.expires_at)
+      if (!isNaN(exp.getTime()) && exp < new Date()) return null
+    }
+
+    return {
+      code: data.code,
+      type: (data.type === 'flat' ? 'flat' : 'percent') as 'percent' | 'flat',
+      value: Number(data.value) || 0,
+      minOrder: data.min_order ? Number(data.min_order) : undefined,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -180,22 +375,26 @@ export interface Testimonial {
   avatar: string
 }
 
-/**
- * Reads the "Testimonials" sheet.
- * Expected columns: Name | Location | Review | Rating | Avatar
- * Silently returns [] if the sheet doesn't exist yet.
- */
-export async function fetchTestimonials(): Promise<Testimonial[]> {
-  if (!SHEET_ID) return []
+export async function fetchTestimonials(_tenantKey?: string): Promise<Testimonial[]> {
   try {
-    const rows = await gs.readSheetRows(SHEET_ID, 'Testimonials')
-    return rows
+    const { supabase, tenant } = await getTenantDb()
+    const { data, error } = await supabase
+      .from('testimonials')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (error) return []
+
+    return (data || [])
       .map((r: any) => ({
-        name:     String(r[0] ?? r.Name     ?? '').trim(),
-        location: String(r[1] ?? r.Location ?? '').trim(),
-        review:   String(r[2] ?? r.Review   ?? '').trim(),
-        rating:   Math.min(5, Math.max(1, Number(r[3] ?? r.Rating ?? 5) || 5)),
-        avatar:   String(r[4] ?? r.Avatar   ?? '').trim(),
+        name: String(r.name || '').trim(),
+        location: String(r.location || '').trim(),
+        review: String(r.review || '').trim(),
+        rating: Math.min(5, Math.max(1, Number(r.rating || 5) || 5)),
+        avatar: toRenderableAssetUrl(String(r.avatar_url || '').trim()),
       }))
       .filter((t: Testimonial) => t.name && t.review)
   } catch {

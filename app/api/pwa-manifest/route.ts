@@ -1,0 +1,109 @@
+import { getTenantConfig } from '../../../lib/tenant'
+import { getTenantBusinessProfile, getTenantRowFromRequest } from '../../../lib/tenantDb'
+import { headers } from 'next/headers'
+
+export const dynamic = 'force-dynamic'
+
+function toDisplayName(input: string) {
+  const value = String(input || '').trim()
+  if (!value) return 'Storefront'
+  return value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function toShortName(input: string) {
+  const name = String(input || '').trim()
+  if (!name) return 'Store'
+  return name.length > 12 ? name.slice(0, 12).trim() : name
+}
+
+export async function GET() {
+  const h = await headers()
+  const tenantSource = String(h.get('x-tenant-source') || '').trim().toLowerCase()
+  const tenantSlugCandidate = String(h.get('x-tenant-slug-candidate') || '').trim()
+  const strictStorefrontTenant = tenantSource === 'path' || tenantSource === 'host'
+
+  const tenant = await getTenantConfig().catch(() => null)
+  const tenantRow = await getTenantRowFromRequest().catch(() => null)
+  const tenantProfile = tenantRow ? await getTenantBusinessProfile(tenantRow.id).catch(() => null) : null
+
+  const sourceName =
+    tenantProfile?.business_name?.trim() ||
+    tenantRow?.business_name?.trim() ||
+    (strictStorefrontTenant ? toDisplayName(tenantSlugCandidate) : '') ||
+    tenant?.businessName ||
+    tenant?.tenantId ||
+    'Storefront'
+
+  const businessName = toDisplayName(sourceName)
+  const shortName = toShortName(businessName)
+  const routePrefix = String(tenant?.routePrefix || '').trim() || '/'
+
+  const manifest = {
+    name: businessName,
+    short_name: shortName,
+    description: `Shop secure, verified products from ${businessName}.`,
+    start_url: routePrefix,
+    scope: routePrefix === '/' ? '/' : `${routePrefix}/`,
+    display: 'standalone',
+    orientation: 'portrait',
+    theme_color: '#2563EB',
+    background_color: '#F8FAFC',
+    categories: ['shopping', 'lifestyle'],
+    lang: 'en',
+    icons: [
+      {
+        src: '/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-maskable-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+      {
+        src: '/icons/icon-maskable-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+    shortcuts: [
+      {
+        name: 'Browse Products',
+        short_name: 'Products',
+        url: `${routePrefix === '/' ? '' : routePrefix}/search`,
+        description: 'Search and browse all products',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+      },
+      {
+        name: 'Track Order',
+        short_name: 'Track',
+        url: `${routePrefix === '/' ? '' : routePrefix}/track-order`,
+        description: 'Track your latest order updates',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+      },
+    ],
+    prefer_related_applications: false,
+  }
+
+  return new Response(JSON.stringify(manifest), {
+    headers: {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  })
+}

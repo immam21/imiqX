@@ -22,7 +22,26 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | undefined>(undefined)
 
-const STORAGE_KEY = 'miqx_cart_v1'
+const STORAGE_KEY_BASE = 'miqx_cart_v1'
+
+function getTenantScopedStorageKey() {
+  if (typeof window === 'undefined') return STORAGE_KEY_BASE
+
+  const pathname = String(window.location.pathname || '')
+  const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || ''
+  const reserved = new Set(['api', '_next', 'favicon.ico', 'icons', 'manifest.json', 'sw.js', 'offline.html', 'admin', 'platform-admin'])
+  if (firstSegment && !reserved.has(firstSegment)) {
+    return `${STORAGE_KEY_BASE}:/${firstSegment}`
+  }
+
+  const prefix = document.cookie
+    .split('; ')
+    .find((c) => c.startsWith('tenant_path_prefix='))
+    ?.split('=')[1]
+  const decoded = decodeURIComponent(prefix || '').trim().toLowerCase()
+  if (!decoded || decoded === '/') return STORAGE_KEY_BASE
+  return `${STORAGE_KEY_BASE}:${decoded}`
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
@@ -32,8 +51,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // ── Load from localStorage after mount ─────────────────────────────────
   useEffect(() => {
+    const storageKey = getTenantScopedStorageKey()
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      const raw = localStorage.getItem(storageKey)
       if (raw) setItems(JSON.parse(raw))
     } catch {
       // ignore corrupt data
@@ -44,8 +64,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // ── Persist whenever items change (skip the very first render) ──────────
   useEffect(() => {
     if (!hydrated.current) return
+    const storageKey = getTenantScopedStorageKey()
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+      localStorage.setItem(storageKey, JSON.stringify(items))
     } catch (e) {
       console.warn('Failed to write cart to storage', e)
     }

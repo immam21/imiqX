@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, ArrowRight } from 'lucide-react'
 
-const POPUP_KEY = 'leads_popup_seen_v2'
+const POPUP_KEY_PREFIX = 'leads_popup_seen_v5'
 
 interface LeadsPopupProps {
   offerLabel?: string
@@ -20,33 +20,53 @@ export default function LeadsPopup({
   const [name, setName] = useState('')
   const [mobile, setMobile] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    // Only show once per browser (localStorage persists across sessions)
-    if (typeof window !== 'undefined' && localStorage.getItem(POPUP_KEY)) return
-    const timer = setTimeout(() => setShow(true), 5000)
+    if (typeof window === 'undefined') return
+
+    const slug = window.location.pathname.split('/').filter(Boolean)[0] || 'storefront'
+    const popupKey = `${POPUP_KEY_PREFIX}:${slug}`
+    if (window.sessionStorage.getItem(popupKey)) return
+
+    const timer = setTimeout(() => setShow(true), 3500)
     return () => clearTimeout(timer)
   }, [])
 
   const dismiss = () => {
-    localStorage.setItem(POPUP_KEY, '1')
+    const slug = window.location.pathname.split('/').filter(Boolean)[0] || 'storefront'
+    window.sessionStorage.setItem(`${POPUP_KEY_PREFIX}:${slug}`, '1')
     setShow(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !mobile) return
+    setSubmitting(true)
+    setError('')
     try {
-      await fetch('/api/leads', {
+      const response = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, mobile })
       })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(data?.error || 'Could not submit your details. Please try again.')
+        return
+      }
+
       setSubmitted(true)
-      localStorage.setItem(POPUP_KEY, '1')
+      const slug = window.location.pathname.split('/').filter(Boolean)[0] || 'storefront'
+      window.sessionStorage.setItem(`${POPUP_KEY_PREFIX}:${slug}`, '1')
       setTimeout(() => setShow(false), 2200)
     } catch (error) {
       console.error('Failed to submit lead:', error)
+      setError('Network issue while saving your details. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -114,9 +134,10 @@ export default function LeadsPopup({
                 required
               />
               <button type="submit" className="btn-primary w-full">
-                Unlock discount
+                {submitting ? 'Submitting…' : 'Unlock discount'}
                 <ArrowRight size={15} />
               </button>
+              {error ? <p className="text-center text-[11px] text-red-500">{error}</p> : null}
               <p className="text-center text-[11px] text-slate-400">No spam. Unsubscribe anytime.</p>
             </form>
           )}

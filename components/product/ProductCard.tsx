@@ -16,6 +16,16 @@ type Product = {
   description?: string
 }
 
+function getTenantPrefix() {
+  if (typeof document === 'undefined') return ''
+  const raw = document.cookie
+    .split('; ')
+    .find((c) => c.startsWith('tenant_path_prefix='))
+    ?.split('=')[1]
+  const prefix = decodeURIComponent(raw || '').trim()
+  return prefix && prefix !== '/' ? prefix : ''
+}
+
 function Stars({ count = 4 }: { count?: number }) {
   return (
     <div className="flex items-center gap-0.5" aria-label={`${count} out of 5 stars`}>
@@ -31,13 +41,15 @@ function Stars({ count = 4 }: { count?: number }) {
 }
 
 export default function ProductCard({ product }: { product: Product }) {
-  const imageSrc = product.image ?? product.images?.[0] ?? '/placeholder.svg'
+  const imageSrc = product.images?.find(Boolean) ?? product.image ?? '/placeholder.svg'
   const hasDiscount = !!(product.discount && product.discount > 0)
   const savings = hasDiscount ? Math.round(product.price - product.offerPrice) : 0
+  const tenantPrefix = getTenantPrefix()
+  const route = (path: string) => `${tenantPrefix}${path}`
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card transition-all duration-300 hover:-translate-y-1.5 hover:shadow-hover hover:border-slate-300 animate-fade-up">
-      <Link href={`/product/${product.productId}`} className="flex flex-1 flex-col">
+      <Link href={route(`/product/${product.productId}`)} className="flex flex-1 flex-col">
 
         {/* ── Image ── */}
         <div className="relative aspect-square overflow-hidden bg-slate-100">

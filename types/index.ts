@@ -24,4 +24,39 @@ export type Order = {
   GrandTotal: number
   OrderStatus: string
   WhatsAppSent?: boolean
+  CouponCode?: string
+  CouponDiscount?: number
+}
+
+export type Banner = {
+  bannerId: string
+  title: string
+  subtitle?: string
+  imageUrl: string
+  linkUrl?: string
+  buttonText?: string
+}
+
+export type Review = {
+  reviewId?: string
+  productId: string
+  name: string
+  rating: number
+  review: string
+  date?: string
+}
+
+export type Coupon = {
+  code: string
+  type: 'percent' | 'flat'
+  value: number
+  minOrder?: number
+  expiry?: string
+}
+
+export type AppliedCoupon = {
+  code: string
+  type: 'percent' | 'flat'
+  value: number
+  discountAmount: number
 }

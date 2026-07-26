@@ -4,6 +4,13 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
   reactStrictMode: true,
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Avoid intermittent ENOENT on .next/cache/webpack/*.pack.gz in local dev.
+      config.cache = false
+    }
+    return config
+  },
   images: {
     remotePatterns: [
       {
@@ -13,7 +20,7 @@ const nextConfig = {
     ]
   },
   async headers() {
-    return [
+    const headers = [
       {
         source: '/sw.js',
         headers: [
@@ -27,7 +34,17 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
         ],
       },
+
     ]
+
+    if (process.env.NODE_ENV !== 'production') {
+      headers.push({
+        source: '/_next/static/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, max-age=0' }],
+      })
+    }
+
+    return headers
   },
 }
 

@@ -9,12 +9,22 @@ export default function PWAProvider() {
   const [showInstall, setShowInstall] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [showUpdate, setShowUpdate] = useState(false)
+  const [showInstallGuide, setShowInstallGuide] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
 
   // ── Service Worker registration ──────────────────────────
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
+
+    // Service worker in dev can cache stale Next chunks and trigger
+    // runtime module factory mismatches (options.factory undefined).
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((reg) => reg.unregister())
+      })
+      return
+    }
 
     const registerSW = async () => {
       try {
@@ -83,13 +93,17 @@ export default function PWAProvider() {
 
   // ── Handlers ─────────────────────────────────────────────
   const handleInstall = useCallback(async () => {
-    if (!deferredInstallPrompt) return
-    deferredInstallPrompt.prompt()
-    const { outcome } = await deferredInstallPrompt.userChoice
-    if (outcome === 'accepted') {
-      setShowInstall(false)
-      deferredInstallPrompt = null
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt()
+      const { outcome } = await deferredInstallPrompt.userChoice
+      if (outcome === 'accepted') {
+        setShowInstall(false)
+        deferredInstallPrompt = null
+      }
+      return
     }
+
+    setShowInstallGuide(true)
   }, [])
 
   const handleUpdate = useCallback(() => {
@@ -105,6 +119,74 @@ export default function PWAProvider() {
 
   return (
     <>
+      {/* ── Floating Install CTA (above WhatsApp FAB) ─────── */}
+      {!isStandalone && !dismissed && (
+        <button
+          onClick={handleInstall}
+          aria-label="Install app"
+          title="Install app"
+          className="fixed bottom-24 right-4 z-[58] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent to-blue-700 text-white shadow-lg shadow-blue-600/35 transition-all hover:scale-110 hover:shadow-xl hover:shadow-blue-600/40 sm:right-6"
+        >
+          <span className="pointer-events-none absolute -top-1.5 -right-1.5 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-accent ring-1 ring-blue-200">
+            App
+          </span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3v11" />
+            <path d="M8 10l4 4 4-4" />
+            <path d="M4 20h16" />
+          </svg>
+        </button>
+      )}
+
+      {/* ── Manual install help card ───────────────────────── */}
+      {showInstallGuide && !isStandalone && (
+        <div
+          role="dialog"
+          aria-label="Install help"
+          className="fixed bottom-[130px] right-4 z-[60] w-72 animate-pop sm:right-6"
+        >
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
+            <div className="flex items-center gap-3 bg-gradient-to-r from-accent to-blue-600 px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2v13M19 9l-7 7-7-7" />
+                  <path d="M5 21h14" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-white/70">Install App</p>
+                <p className="text-sm font-bold text-white">Add to home screen</p>
+              </div>
+            </div>
+            <div className="p-4">
+              {isIOS ? (
+                <p className="text-xs leading-5 text-slate-500">
+                  On Safari, tap Share and choose Add to Home Screen.
+                </p>
+              ) : (
+                <p className="text-xs leading-5 text-slate-500">
+                  If no prompt appears, open browser menu and select Install App or Add to Home Screen.
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => setShowInstallGuide(false)}
+                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => { setShowInstallGuide(false); setDismissed(true) }}
+                  className="rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-black"
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Chrome/Android Install Prompt ────────────────── */}
       {showInstall && !dismissed && !isStandalone && (
         <div

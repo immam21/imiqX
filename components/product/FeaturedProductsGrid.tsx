@@ -2,22 +2,27 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { LayoutGrid, List, Star } from 'lucide-react'
+import { LayoutGrid, List, MessageCircle, ShoppingCart, Star } from 'lucide-react'
 import type { Product } from '../../types'
 
 interface FeaturedProductsGridProps {
   products: Product[]
+  routePrefix?: string
+  businessType?: 'ecommerce_product' | 'ecommerce_services'
 }
 
-export default function FeaturedProductsGrid({ products }: FeaturedProductsGridProps) {
+export default function FeaturedProductsGrid({ products, routePrefix = '', businessType = 'ecommerce_product' }: FeaturedProductsGridProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const route = (path: string) => `${routePrefix}${path}`
+  const firstImage = (product: any) => product.images?.find(Boolean) ?? product.image ?? '/placeholder.svg'
+  const isServiceBusiness = businessType === 'ecommerce_services'
 
   if (products.length === 0) {
     return (
       <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-14 text-center">
         <div className="mb-4 text-5xl">📦</div>
         <h3 className="text-lg font-bold text-slate-700">No products yet</h3>
-        <p className="mt-2 text-sm text-slate-500">Configure your GSHEET_ID to display live products.</p>
+        <p className="mt-2 text-sm text-slate-500">We are curating products for you. Please check back shortly for new arrivals.</p>
       </div>
     )
   }
@@ -25,8 +30,11 @@ export default function FeaturedProductsGrid({ products }: FeaturedProductsGridP
   return (
     <div>
       {/* Toggle bar */}
-      <div className="mb-5 flex items-center justify-between">
-        <p className="text-sm text-slate-500">{products.length} products</p>
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-500">{products.length} products</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Secure checkout enabled</p>
+        </div>
         <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
           <button
             type="button"
@@ -61,12 +69,12 @@ export default function FeaturedProductsGrid({ products }: FeaturedProductsGridP
             /* ── LIST CARD ── */
             <Link
               key={p.productId}
-              href={`/product/${p.productId}`}
-              className={`group flex overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition-all hover:border-slate-300 hover:shadow-hover stagger-${Math.min(i + 1, 5)}`}
+              href={route(`/product/${p.productId}`)}
+              className={`card-3d group flex overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition-all hover:border-slate-300 hover:shadow-hover stagger-${Math.min(i + 1, 5)}`}
             >
               <div className="relative w-28 shrink-0 overflow-hidden bg-slate-100 sm:w-36">
                 <img
-                  src={p.images?.[0] ?? p.image ?? '/placeholder.svg'}
+                  src={firstImage(p)}
                   alt={p.name}
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
@@ -96,9 +104,14 @@ export default function FeaturedProductsGrid({ products }: FeaturedProductsGridP
                     <p className="text-base font-extrabold text-slate-900">₹{p.offerPrice ?? p.price}</p>
                     {p.discount ? <p className="text-[11px] text-slate-400 line-through">₹{p.price}</p> : null}
                   </div>
-                  <div className="rounded-xl bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent transition-all group-hover:bg-accent group-hover:text-white">
-                    View →
+                  <div className="inline-flex min-w-[116px] items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-bold text-white shadow-sm ring-1 ring-accent/35 transition-all group-hover:brightness-110">
+                    {isServiceBusiness ? <MessageCircle size={13} /> : <ShoppingCart size={13} />}
+                    {isServiceBusiness ? 'Enquire now' : 'Add to cart'}
                   </div>
+                </div>
+                <div className="mt-2 inline-flex w-max items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                  <span>🛡️</span>
+                  Trusted product
                 </div>
               </div>
             </Link>
@@ -106,12 +119,12 @@ export default function FeaturedProductsGrid({ products }: FeaturedProductsGridP
             /* ── GRID CARD ── */
             <Link
               key={p.productId}
-              href={`/product/${p.productId}`}
-              className={`group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-hover stagger-${Math.min(i + 1, 5)}`}
+              href={route(`/product/${p.productId}`)}
+              className={`card-3d group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-hover stagger-${Math.min(i + 1, 5)}`}
             >
               <div className="relative overflow-hidden bg-slate-100">
                 <img
-                  src={p.images?.[0] ?? p.image ?? '/placeholder.svg'}
+                  src={firstImage(p)}
                   alt={p.name}
                   className="h-32 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-48"
                 />
@@ -139,9 +152,14 @@ export default function FeaturedProductsGrid({ products }: FeaturedProductsGridP
                     <p className="text-sm font-extrabold text-slate-900 sm:text-lg">₹{p.offerPrice ?? p.price}</p>
                     {p.discount ? <p className="text-[10px] text-slate-400 line-through sm:text-xs">₹{p.price}</p> : null}
                   </div>
-                  <div className="rounded-xl bg-accent/10 px-2 py-1 text-[10px] font-bold text-accent transition-all group-hover:bg-accent group-hover:text-white sm:px-3 sm:py-1.5 sm:text-xs">
-                    View →
+                  <div className="inline-flex min-w-[106px] items-center justify-center gap-1 rounded-xl bg-accent px-2 py-1 text-[10px] font-bold text-white shadow-sm ring-1 ring-accent/35 transition-all group-hover:brightness-110 sm:min-w-[116px] sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
+                    {isServiceBusiness ? <MessageCircle size={12} /> : <ShoppingCart size={12} />}
+                    {isServiceBusiness ? 'Enquire now' : 'Add to cart'}
                   </div>
+                </div>
+                <div className="mt-2 inline-flex w-max items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                  <span>🔐</span>
+                  Safe purchase
                 </div>
               </div>
             </Link>

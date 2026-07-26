@@ -1,0 +1,26 @@
+{
+  "default": {
+    "businessName": "Crazy Shopperz",
+    "whatsappNumber": "917092244494",
+    "gsheetId": "",
+    "currency": "INR",
+    "logoUrl": "",
+    "deliveryCharge": 40
+  },
+  "tenantid": {
+    "businessName": "Tenant Business Name",
+    "whatsappNumber": "917092244494",
+    "gsheetId": "",
+    "currency": "INR",
+    "logoUrl": "",
+    "deliveryCharge": 40
+  },
+  "_example": {
+    "businessName": "Imiqs Fashion",
+    "whatsappNumber": "919952227656",
+    "gsheetId": "YOUR_CLIENT_GOOGLE_SHEET_ID_HERE",
+    "currency": "INR",
+    "logoUrl": "https://example.com/logo.png",
+    "deliveryCharge": 50
+  }
+}

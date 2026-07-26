@@ -84,9 +84,90 @@ export async function readSheetKeyValues(
   }
 }
 
+export async function readSheetRowObjects(
+  sheetId: string,
+  sheetName: string
+): Promise<Record<string, string>[]> {
+  const doc = await accessSheet(sheetId)
+  const sheet = doc.sheetsByTitle[sheetName]
+  if (!sheet) throw new Error(`Sheet ${sheetName} not found`)
+  const rows = await sheet.getRows()
+  return rows.map((r: any) => {
+    const obj: Record<string, string> = {}
+    for (const h of sheet.headerValues) {
+      obj[h] = String(r.get(h) ?? '').trim()
+    }
+    return obj
+  })
+}
+
+export async function updateSheetRow(
+  sheetId: string,
+  sheetName: string,
+  criteria: Record<string, string>,
+  updates: Record<string, any>
+): Promise<boolean> {
+  const doc = await accessSheet(sheetId)
+  const sheet = doc.sheetsByTitle[sheetName]
+  if (!sheet) throw new Error(`Sheet ${sheetName} not found`)
+  const rows = await sheet.getRows()
+  const match = rows.find((row: any) =>
+    Object.entries(criteria).every(([key, val]) => row.get(key) === val)
+  )
+  if (!match) return false
+  for (const [key, val] of Object.entries(updates)) {
+    match.set(key, val === null || val === undefined ? '' : String(val))
+  }
+  await match.save()
+  return true
+}
+
+export async function updateSheetKeyValue(
+  sheetId: string,
+  sheetName: string,
+  key: string,
+  value: string
+): Promise<void> {
+  const doc = await accessSheet(sheetId)
+  const sheet = doc.sheetsByTitle[sheetName]
+  if (!sheet) throw new Error(`Sheet ${sheetName} not found`)
+  const rows = await sheet.getRows()
+  const match = rows.find((row: any) => {
+    const k = row.get('Key') ?? row.get('key')
+    return k && String(k).trim() === key
+  })
+  if (match) {
+    match.set('Value', value)
+    await match.save()
+  } else {
+    await sheet.addRow({ Key: key, Value: value })
+  }
+}
+
+export async function deleteSheetRow(
+  sheetId: string,
+  sheetName: string,
+  criteria: Record<string, string>
+): Promise<boolean> {
+  const doc = await accessSheet(sheetId)
+  const sheet = doc.sheetsByTitle[sheetName]
+  if (!sheet) throw new Error(`Sheet ${sheetName} not found`)
+  const rows = await sheet.getRows()
+  const match = rows.find((row: any) =>
+    Object.entries(criteria).every(([key, val]) => row.get(key) === val)
+  )
+  if (!match) return false
+  await match.delete()
+  return true
+}
+
 export default {
   readSheetRows,
+  readSheetRowObjects,
   findSheetRow,
   appendSheetRow,
   readSheetKeyValues,
+  updateSheetRow,
+  updateSheetKeyValue,
+  deleteSheetRow,
 }
