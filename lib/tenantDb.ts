@@ -100,7 +100,7 @@ function isTransientDbError(message: string) {
   )
 }
 
-async function retryOnTransient<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+async function retryOnTransient<T>(operation: () => PromiseLike<T>, attempts = 3): Promise<T> {
   let lastError: unknown
   for (let index = 0; index < attempts; index += 1) {
     try {
@@ -165,11 +165,12 @@ async function findTenantByDomain(hostname: string): Promise<TenantRow | null> {
   }
   if (!domainLookup.data?.tenant_id) return null
 
+  const resolvedTenantId = domainLookup.data.tenant_id
   const tenantLookup = await retryOnTransient(() =>
     supabase
       .from('tenants')
       .select('id,sid,tenant_code,business_name,whatsapp_number,currency,logo_url,default_delivery_charge')
-      .eq('id', domainLookup.data.tenant_id)
+      .eq('id', resolvedTenantId)
       .maybeSingle()
   )
 
@@ -564,10 +565,11 @@ export async function listTenantClients(limit = 24): Promise<TenantClient[]> {
 
   // Compatibility fallback for schemas that do not have activity/timestamp columns.
   if (query.error && /column .* does not exist/i.test(query.error.message || '')) {
-    query = await supabase
+    const fallbackQuery = await supabase
       .from('tenants')
       .select('id,business_name,logo_url,tenant_code')
       .limit(limit)
+    query = fallbackQuery as typeof query
   }
 
   if (query.error) {

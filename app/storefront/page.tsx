@@ -35,7 +35,7 @@ export default async function Home() {
       console.error('Catalog fetch failed:', error)
       return [] as Product[]
     }),
-    fetchSettings(sid).catch(() => ({ businessName: '', offerLabel: '', offerTitle: '', offerSubtitle: '' })),
+    fetchSettings(sid).catch(() => ({ businessName: '', offerLabel: '', offerTitle: '', offerSubtitle: '', logoUrl: '' })),
     fetchTestimonials(sid).catch(() => []),
     fetchBanners(sid).catch(() => []),
   ])

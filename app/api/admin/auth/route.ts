@@ -22,7 +22,7 @@ function isTenantNotFoundError(error: unknown) {
   return /tenant not found/i.test(message)
 }
 
-async function withTransientRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+async function withTransientRetry<T>(operation: () => PromiseLike<T>, attempts = 3): Promise<T> {
   let lastError: unknown
   for (let index = 0; index < attempts; index += 1) {
     try {

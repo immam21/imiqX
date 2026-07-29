@@ -804,7 +804,7 @@ export default function PlatformAdminPage() {
 
     let token = await ensureCsrfToken()
     let response = await execute(token)
-    if (response.status !== 403) return response
+    if (response.status !== 403 && response.status !== 401) return response
 
     const body = await response.clone().json().catch(() => null)
     const message = String(body?.error || '')
