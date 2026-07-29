@@ -81,15 +81,32 @@ async function resolveTenantFromMappedDomain(hostname: string): Promise<string |
   return tenantSlug
 }
 
+// Domains owned by hosting providers — never treated as tenant subdomains.
+const HOSTING_PROVIDER_ROOT_DOMAINS = new Set([
+  'vercel.app',
+  'netlify.app',
+  'railway.app',
+  'fly.dev',
+  'onrender.com',
+  'pages.dev',
+  'workers.dev',
+  'github.io',
+  'amplifyapp.com',
+])
+
 function resolveTenantFromHost(hostname: string): string | null {
   const cleanHost = hostname.split(':')[0].toLowerCase()
   const hostParts = cleanHost.split('.')
   const subdomain = hostParts[0]
 
+  // e.g. imiq-x.vercel.app → root domain is vercel.app → deployment URL, not a tenant
+  const rootDomain = hostParts.slice(1).join('.')
+  if (HOSTING_PROVIDER_ROOT_DOMAINS.has(rootDomain)) return null
+
   const isSubdomain =
     hostParts.length > 1 &&
     subdomain &&
-    !['www', 'localhost', 'vercel'].includes(subdomain) &&
+    !['www', 'localhost'].includes(subdomain) &&
     !cleanHost.startsWith('localhost')
 
   if (isSubdomain) return subdomain
@@ -139,6 +156,11 @@ function isSharedStorefrontHost(hostname: string) {
   if (!host) return false
   if (host === 'localhost' || host.startsWith('localhost.')) return true
   if (host.endsWith('.localhost')) return true
+
+  // Vercel / hosting-provider deployment URLs are always treated as platform root
+  const hostParts = host.split('.')
+  const rootDomain = hostParts.slice(1).join('.')
+  if (HOSTING_PROVIDER_ROOT_DOMAINS.has(rootDomain)) return true
 
   const platformDomain = normalizeHost(process.env.PLATFORM_BASE_DOMAIN || process.env.NEXT_PUBLIC_PLATFORM_DOMAIN || '')
   if (!platformDomain) return false
