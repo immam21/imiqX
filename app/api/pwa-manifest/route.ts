@@ -1,5 +1,6 @@
 import { getTenantConfig } from '../../../lib/tenant'
-import { getTenantBusinessProfile, getTenantRowFromRequest } from '../../../lib/tenantDb'
+import { getTenantBusinessProfile, getTenantRowFromRequest, getTenantSettings } from '../../../lib/tenantDb'
+import { toRenderableAssetUrl } from '../../../lib/assetUrl'
 import { headers } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,7 @@ export async function GET() {
   const tenant = await getTenantConfig().catch(() => null)
   const tenantRow = await getTenantRowFromRequest().catch(() => null)
   const tenantProfile = tenantRow ? await getTenantBusinessProfile(tenantRow.id).catch(() => null) : null
+  const tenantKv = tenantRow ? await getTenantSettings(tenantRow.id).catch(() => ({} as Record<string, string>)) : {}
 
   const sourceName =
     tenantProfile?.business_name?.trim() ||
@@ -38,6 +40,15 @@ export async function GET() {
     tenant?.businessName ||
     tenant?.tenantId ||
     'Storefront'
+
+  const rawLogoUrl =
+    String(tenantKv.LogoURL || tenantKv.logoUrl || '').trim() ||
+    tenantProfile?.logo_url?.trim() ||
+    tenantRow?.logo_url?.trim() ||
+    tenant?.logoUrl ||
+    ''
+
+  const tenantLogoUrl = rawLogoUrl ? toRenderableAssetUrl(rawLogoUrl) : ''
 
   const businessName = toDisplayName(sourceName)
   const shortName = toShortName(businessName)
@@ -56,6 +67,23 @@ export async function GET() {
     categories: ['shopping', 'lifestyle'],
     lang: 'en',
     icons: [
+      // Tenant logo — listed first so the browser picks it as the install icon.
+      ...(tenantLogoUrl
+        ? [
+            {
+              src: tenantLogoUrl,
+              sizes: 'any',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: tenantLogoUrl,
+              sizes: 'any',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ]
+        : []),
       {
         src: '/icons/icon-192.png',
         sizes: '192x192',
@@ -87,14 +115,14 @@ export async function GET() {
         short_name: 'Products',
         url: `${routePrefix === '/' ? '' : routePrefix}/search`,
         description: 'Search and browse all products',
-        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+        icons: [{ src: tenantLogoUrl || '/icons/icon-192.png', sizes: tenantLogoUrl ? 'any' : '192x192' }],
       },
       {
         name: 'Track Order',
         short_name: 'Track',
         url: `${routePrefix === '/' ? '' : routePrefix}/track-order`,
         description: 'Track your latest order updates',
-        icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }],
+        icons: [{ src: tenantLogoUrl || '/icons/icon-192.png', sizes: tenantLogoUrl ? 'any' : '192x192' }],
       },
     ],
     prefer_related_applications: false,
