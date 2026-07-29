@@ -46,11 +46,27 @@ async function resolveTenantFromMappedDomain(hostname: string): Promise<string |
   }
 
   const loadTenantId = async (column: 'host' | 'domain') => {
-    const lookupUrl = `${supabaseUrl}/rest/v1/tenant_domains?select=tenant_id,is_verified,${column}&${column}=eq.${encodeURIComponent(host)}&is_verified=eq.true&limit=1`
-    const response = await fetch(lookupUrl, { headers, cache: 'no-store' })
+    // Try with is_verified filter first; fall back without it if the column is missing.
+    const urlWithVerified = `${supabaseUrl}/rest/v1/tenant_domains?select=tenant_id,${column}&${column}=eq.${encodeURIComponent(host)}&is_verified=eq.true&limit=1`
+    const urlWithoutVerified = `${supabaseUrl}/rest/v1/tenant_domains?select=tenant_id,${column}&${column}=eq.${encodeURIComponent(host)}&limit=1`
+
+    let response = await fetch(urlWithVerified, { headers, cache: 'no-store' })
     if (!response.ok) {
       const message = await response.text()
-      return { tenantId: '', missingColumn: /column .* does not exist/i.test(message || '') }
+      if (/column .* does not exist/i.test(message || '')) {
+        // is_verified (or this column) doesn't exist yet — retry without it
+        if (/is_verified/i.test(message || '')) {
+          response = await fetch(urlWithoutVerified, { headers, cache: 'no-store' })
+          if (!response.ok) {
+            const msg2 = await response.text()
+            return { tenantId: '', missingColumn: /column .* does not exist/i.test(msg2 || '') }
+          }
+          const rows2 = (await response.json().catch(() => [])) as Array<{ tenant_id?: string }>
+          return { tenantId: String(rows2?.[0]?.tenant_id || '').trim(), missingColumn: false }
+        }
+        return { tenantId: '', missingColumn: true }
+      }
+      return { tenantId: '', missingColumn: false }
     }
     const rows = (await response.json().catch(() => [])) as Array<{ tenant_id?: string }>
     return { tenantId: String(rows?.[0]?.tenant_id || '').trim(), missingColumn: false }

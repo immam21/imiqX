@@ -157,6 +157,19 @@ async function findTenantByDomain(hostname: string): Promise<TenantRow | null> {
     )
   }
 
+  // Compatibility fallback for schemas that do not yet have is_verified column.
+  if (domainLookup.error && /column .*is_verified/i.test(domainLookup.error.message || '')) {
+    const fallback = await retryOnTransient(() =>
+      supabase
+        .from('tenant_domains')
+        .select('tenant_id')
+        .or(`host.eq.${host},domain.eq.${host}`)
+        .limit(1)
+        .maybeSingle()
+    )
+    domainLookup = fallback as typeof domainLookup
+  }
+
   if (domainLookup.error) {
     if (isTransientDbError(domainLookup.error.message || '')) {
       throw new Error(`Transient tenant domain lookup failed: ${domainLookup.error.message}`)
