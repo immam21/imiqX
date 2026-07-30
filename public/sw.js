@@ -1,119 +1,109 @@
 // ============================================================
-//  imiqX Service Worker
-//  Cache version — bump this string to force cache refresh
+//  imiqX Service Worker — v3 (multi-tenant, fast cache)
 // ============================================================
-const CACHE_NAME = 'imiqx-v1';
+const CACHE_NAME = 'imiqx-v3';
 const OFFLINE_URL = '/offline.html';
+// Stale-while-revalidate freshness windows
+const API_SWR_MS  = 30000;   // 30 s — products, settings, banners
+const PAGE_SWR_MS = 10000;   // 10 s — page HTML
+const DAY_MS      = 86400000; // 1 day — images, fonts, asset proxy
 
-// ─── Pre-cache shell ────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.add(OFFLINE_URL))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((c) => c.add(OFFLINE_URL)).then(() => self.skipWaiting())
   );
 });
 
-// ─── Clean up obsolete caches ───────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k.startsWith('imiqx-') && k !== CACHE_NAME)
-            .map((k) => caches.delete(k))
-        )
-      )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('imiqx-') && k !== CACHE_NAME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-// ─── Fetch routing ──────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-
-  // Skip non-GET and cross-origin requests
   if (request.method !== 'GET' || url.origin !== location.origin) return;
 
-  // ── API routes → Network First ──────────────────────────
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(request));
-    return;
-  }
-
-  // ── Next.js hashed static chunks → Cache First ──────────
-  // (hashed filenames are safe to cache indefinitely)
+  // Hashed static chunks — safe to cache forever
   if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith(cacheFirst(request));
-    return;
+    event.respondWith(cacheForever(request)); return;
   }
-
-  // ── Images & fonts → Cache First ────────────────────────
+  // Next image optimisation + our asset proxy — cache 1 day
+  if (url.pathname.startsWith('/_next/image') || url.pathname.startsWith('/api/asset')) {
+    event.respondWith(cacheFirst(request, DAY_MS)); return;
+  }
+  // Slow-changing data APIs — serve cached instantly, revalidate behind the scenes
+  const swrApis = ['/api/products', '/api/settings', '/api/banners', '/api/reviews', '/api/coupons', '/api/pwa-manifest'];
+  if (swrApis.some((p) => url.pathname.endsWith(p))) {
+    event.respondWith(staleWhileRevalidate(request, API_SWR_MS)); return;
+  }
+  // Mutation APIs — never cache
+  if (url.pathname.includes('/api/')) {
+    event.respondWith(networkOnly(request)); return;
+  }
+  // Images / fonts — cache 1 day
   if (request.destination === 'image' || request.destination === 'font') {
-    event.respondWith(cacheFirst(request));
-    return;
+    event.respondWith(cacheFirst(request, DAY_MS)); return;
   }
-
-  // ── Page navigations → Network First + offline fallback ─
+  // Page navigations — SWR so repeat visits are instant
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match(OFFLINE_URL))
-    );
-    return;
+    event.respondWith(navigateSWR(request)); return;
   }
-
-  // ── Everything else → Stale-While-Revalidate ────────────
-  event.respondWith(staleWhileRevalidate(request));
+  event.respondWith(staleWhileRevalidate(request, API_SWR_MS));
 });
 
-// ─── Strategies ─────────────────────────────────────────────
-
-/** Network first; falls back to cache, then JSON error for API calls. */
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const response = await fetch(request);
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  } catch {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    return new Response(JSON.stringify({ error: 'offline', offline: true }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+// ─── Helpers ────────────────────────────────────────────────
+function isFresh(response, maxMs) {
+  if (!response) return false;
+  const ts = response.headers.get('x-sw-cached-at');
+  return ts ? (Date.now() - Number(ts) < maxMs) : false;
 }
-
-/** Cache first; fetches and caches on miss. */
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const response = await fetch(request);
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  } catch {
-    return new Response('', { status: 408 });
-  }
+async function stamped(response) {
+  const h = new Headers(response.headers);
+  h.set('x-sw-cached-at', String(Date.now()));
+  return new Response(await response.clone().arrayBuffer(), { status: response.status, statusText: response.statusText, headers: h });
 }
-
-/** Serve from cache immediately; revalidate in background. */
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(CACHE_NAME);
+async function staleWhileRevalidate(request, maxMs) {
+  const cache  = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
-  const networkPromise = fetch(request)
-    .then((res) => {
-      if (res.ok) cache.put(request, res.clone());
-      return res;
-    })
+  const net = fetch(request, { cache: 'no-store' })
+    .then(async (r) => { if (r.ok) cache.put(request, await stamped(r)); return r; })
     .catch(() => null);
-  return cached ?? (await networkPromise) ?? new Response('', { status: 503 });
+  if (cached) { if (!isFresh(cached, maxMs)) net; return cached; }
+  return (await net) ?? new Response(JSON.stringify({ error: 'offline', offline: true }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+}
+async function navigateSWR(request) {
+  const cache  = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  const net = fetch(request)
+    .then(async (r) => { if (r.ok) cache.put(request, await stamped(r)); return r; })
+    .catch(() => null);
+  if (cached) { if (!isFresh(cached, PAGE_SWR_MS)) net; return cached; }
+  return (await net) ?? (await caches.match(OFFLINE_URL)) ?? new Response('Offline', { status: 503 });
+}
+async function cacheFirst(request, maxMs) {
+  const cache  = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached && isFresh(cached, maxMs)) return cached;
+  try {
+    const r = await fetch(request, { cache: 'no-store' });
+    if (r.ok) cache.put(request, await stamped(r));
+    return r;
+  } catch { return cached ?? new Response('', { status: 408 }); }
+}
+async function cacheForever(request) {
+  const cache  = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try { const r = await fetch(request); if (r.ok) cache.put(request, r.clone()); return r; }
+  catch { return new Response('', { status: 408 }); }
+}
+async function networkOnly(request) {
+  try { return await fetch(request); }
+  catch { return new Response(JSON.stringify({ error: 'offline', offline: true }), { status: 503, headers: { 'Content-Type': 'application/json' } }); }
 }
 
 // ─── Skip-waiting message ───────────────────────────────────

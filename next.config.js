@@ -25,6 +25,7 @@ const nextConfig = {
         source: '/sw.js',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          // Allow SW to claim any sub-path scope (needed for per-tenant scopes like /fashionhub/)
           { key: 'Service-Worker-Allowed', value: '/' },
         ],
       },

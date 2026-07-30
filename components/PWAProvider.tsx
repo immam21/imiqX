@@ -28,7 +28,11 @@ export default function PWAProvider() {
 
     const registerSW = async () => {
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        // Determine tenant scope from cookie so each tenant gets its own SW registration
+        const rawPrefix = document.cookie.split('; ').find((c) => c.startsWith('tenant_path_prefix='))?.split('=')[1]
+        const tenantPrefix = decodeURIComponent(rawPrefix || '').trim()
+        const swScope = (tenantPrefix && tenantPrefix !== '/') ? `${tenantPrefix}/` : '/'
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: swScope })
 
         // Listen for a waiting worker (new version available)
         reg.addEventListener('updatefound', () => {
