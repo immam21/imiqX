@@ -46,12 +46,13 @@ export async function GET(request: Request) {
     // first request hits Supabase + Sheets; all others return from Data Cache
     const tenantRow = await getTenantRowFromRequest().catch(() => null)
 
-    const [settings, [tenantSettings, tenantProfile, entitlements]] = await Promise.all([
+    const [settings, dbTuple] = await Promise.all([
       buildSettingsLoader(tenantId, tenant.gsheetId)(),
       tenantRow
         ? buildTenantDbLoader(tenantId, tenantRow.id)()
-        : Promise.resolve([{} as Record<string, string>, null, null]),
+        : Promise.resolve([{} as Record<string, string>, null, null] as const),
     ])
+    const [tenantSettings, tenantProfile, entitlements] = dbTuple as [Record<string, string>, import('../../../lib/tenantDb').TenantBusinessProfile | null, import('../../../lib/tenantDb').TenantEntitlements | null]
     const businessType = String(tenantSettings.BusinessType || tenantSettings.businessType || 'ecommerce_product').trim().toLowerCase() === 'ecommerce_services'
       ? 'ecommerce_services'
       : 'ecommerce_product'
