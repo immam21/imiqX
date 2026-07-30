@@ -27,17 +27,36 @@ export default function PWAProvider() {
       return
     }
 
+    const RESERVED_SEGMENTS = new Set(['api', '_next', 'admin', 'platform-admin', 'icons', 'manifest.json', 'sw.js'])
+
     const registerSW = async () => {
       try {
-        // Determine tenant scope from cookie so each tenant gets its own SW registration
-        const rawPrefix = document.cookie.split('; ').find((c) => c.startsWith('tenant_path_prefix='))?.split('=')[1]
-        const tenantPrefix = decodeURIComponent(rawPrefix || '').trim()
-        const swScope = (tenantPrefix && tenantPrefix !== '/') ? `${tenantPrefix}/` : '/'
-        const slug = tenantPrefix && tenantPrefix !== '/' ? tenantPrefix.replace(/^\//,'').split('/')[0] : 'default'
-        setTenantKey(slug)
-        // Load per-tenant dismissed state
-        const wasDismissed = localStorage.getItem(`pwa_dismissed:${slug}`) === '1'
-        if (wasDismissed) setDismissed(true)
+        // Derive tenant slug directly from the URL pathname — reliable on first visit,
+        // no dependency on cookies being set yet.
+        const pathSegments = window.location.pathname.split('/').filter(Boolean)
+        const firstSegment = (pathSegments[0] || '').toLowerCase()
+        const slug = (firstSegment && !RESERVED_SEGMENTS.has(firstSegment)) ? firstSegment : ''
+        const swScope = slug ? `/${slug}/` : '/'
+
+        setTenantKey(slug || 'default')
+
+        // Load per-tenant dismissed state from localStorage
+        const dismissKey = `pwa_dismissed:${slug || 'default'}`
+        if (localStorage.getItem(dismissKey) === '1') setDismissed(true)
+
+        // Clean up any broad-scope (/) SW registrations from previous versions.
+        // A '/' scoped SW controls ALL tenant paths and prevents separate installs.
+        if (slug) {
+          const existing = await navigator.serviceWorker.getRegistrations()
+          for (const reg of existing) {
+            const regScope = new URL(reg.scope).pathname
+            if (regScope === '/' || (regScope !== `/${slug}/` && !regScope.startsWith(`/${slug}/`))) {
+              console.info(`[PWA] Removing conflicting SW scope: ${regScope}`)
+              await reg.unregister()
+            }
+          }
+        }
+
         const reg = await navigator.serviceWorker.register('/sw.js', { scope: swScope })
 
         // Listen for a waiting worker (new version available)
