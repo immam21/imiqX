@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { fetchSettings } from '../../../services/productService'
 import { getTenantConfig } from '../../../lib/tenant'
 import { getTenantBusinessProfile, getTenantEntitlements, getTenantRowFromRequest, getTenantSettings } from '../../../lib/tenantDb'
+import { getCached, setCached, TTL } from '../../../lib/serverCache'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -20,6 +21,16 @@ function toDisplayName(input: string) {
 export async function GET(request: Request) {
   try {
     const tenant = await getTenantConfig()
+    const tenantId = tenant.tenantId || 'default'
+    const cacheKey = `${tenantId}:settings`
+
+    const cached = getCached<object>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'HIT' },
+      })
+    }
+
     const settings = await fetchSettings(tenant.gsheetId)
     const tenantRow = await getTenantRowFromRequest().catch(() => null)
     const tenantSettings = tenantRow ? await getTenantSettings(tenantRow.id).catch(() => ({} as Record<string, string>)) : {}
@@ -47,7 +58,7 @@ export async function GET(request: Request) {
       tenantRow?.logo_url?.trim() ||
       ''
 
-    return NextResponse.json({
+    const payload = {
       deliveryCharge: settings.deliveryCharge || tenant.deliveryCharge,
       logoUrl,
       tenantId: tenant.tenantId,
@@ -63,12 +74,10 @@ export async function GET(request: Request) {
         features: entitlements.features,
         limits: entitlements.limits,
       } : null,
-    }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        Pragma: 'no-cache',
-        Expires: '0',
-      },
+    }
+    setCached(cacheKey, payload, TTL.SETTINGS)
+    return NextResponse.json(payload, {
+      headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'MISS' },
     })
   } catch (err: any) {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { getTenantConfig } from '../../../lib/tenant'
 import { getTenantBusinessProfile, getTenantRowFromRequest, getTenantSettings } from '../../../lib/tenantDb'
 import { toRenderableAssetUrl } from '../../../lib/assetUrl'
+import { getCached, setCached, TTL } from '../../../lib/serverCache'
 import { headers } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,15 @@ export async function GET() {
   const tenantSource = String(h.get('x-tenant-source') || '').trim().toLowerCase()
   const tenantSlugCandidate = String(h.get('x-tenant-slug-candidate') || '').trim()
   const strictStorefrontTenant = tenantSource === 'path' || tenantSource === 'host'
+
+  // Serve from cache if available (2 min TTL) — avoids repeated Supabase calls
+  const cacheKey = `${tenantSlugCandidate || 'default'}:manifest`
+  const cachedManifest = getCached<string>(cacheKey)
+  if (cachedManifest) {
+    return new Response(cachedManifest, {
+      headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'X-Cache': 'HIT' },
+    })
+  }
 
   const tenant = await getTenantConfig().catch(() => null)
   const tenantRow = await getTenantRowFromRequest().catch(() => null)
@@ -133,10 +143,14 @@ export async function GET() {
     prefer_related_applications: false,
   }
 
-  return new Response(JSON.stringify(manifest), {
+  const manifestJson = JSON.stringify(manifest)
+  setCached(cacheKey, manifestJson, TTL.MANIFEST)
+
+  return new Response(manifestJson, {
     headers: {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'public, max-age=120',
+      'X-Cache': 'MISS',
     },
   })
 }
