@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
+import { unstable_cache } from 'next/cache'
 import { fetchSettings } from '../../../services/productService'
 import { getTenantConfig } from '../../../lib/tenant'
 import { getTenantBusinessProfile, getTenantEntitlements, getTenantRowFromRequest, getTenantSettings } from '../../../lib/tenantDb'
-import { getCached, setCached, TTL } from '../../../lib/serverCache'
 
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
 function toDisplayName(input: string) {
   const value = String(input || '').trim()
@@ -18,24 +17,41 @@ function toDisplayName(input: string) {
     .join(' ')
 }
 
+function buildSettingsLoader(tenantId: string, gsheetId: string) {
+  return unstable_cache(
+    async () => fetchSettings(gsheetId).catch(() => ({} as Record<string, string>)),
+    [`settings-sheets:${tenantId}`],
+    { revalidate: 60, tags: [`tenant:${tenantId}`, 'settings'] }
+  )
+}
+
+function buildTenantDbLoader(tenantId: string, tenantRowId: string) {
+  return unstable_cache(
+    async () => Promise.all([
+      getTenantSettings(tenantRowId).catch(() => ({} as Record<string, string>)),
+      getTenantBusinessProfile(tenantRowId).catch(() => null),
+      getTenantEntitlements(tenantRowId).catch(() => null),
+    ]),
+    [`settings-db:${tenantId}`],
+    { revalidate: 60, tags: [`tenant:${tenantId}`, 'settings'] }
+  )
+}
+
 export async function GET(request: Request) {
   try {
     const tenant = await getTenantConfig()
     const tenantId = tenant.tenantId || 'default'
-    const cacheKey = `${tenantId}:settings`
 
-    const cached = getCached<object>(cacheKey)
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120', 'X-Cache': 'HIT' },
-      })
-    }
-
-    const settings = await fetchSettings(tenant.gsheetId)
+    // unstable_cache is shared across ALL Vercel serverless instances —
+    // first request hits Supabase + Sheets; all others return from Data Cache
     const tenantRow = await getTenantRowFromRequest().catch(() => null)
-    const tenantSettings = tenantRow ? await getTenantSettings(tenantRow.id).catch(() => ({} as Record<string, string>)) : {}
-    const tenantProfile = tenantRow ? await getTenantBusinessProfile(tenantRow.id).catch(() => null) : null
-    const entitlements = tenantRow ? await getTenantEntitlements(tenantRow.id).catch(() => null) : null
+
+    const [settings, [tenantSettings, tenantProfile, entitlements]] = await Promise.all([
+      buildSettingsLoader(tenantId, tenant.gsheetId)(),
+      tenantRow
+        ? buildTenantDbLoader(tenantId, tenantRow.id)()
+        : Promise.resolve([{} as Record<string, string>, null, null]),
+    ])
     const businessType = String(tenantSettings.BusinessType || tenantSettings.businessType || 'ecommerce_product').trim().toLowerCase() === 'ecommerce_services'
       ? 'ecommerce_services'
       : 'ecommerce_product'
@@ -75,14 +91,9 @@ export async function GET(request: Request) {
         limits: entitlements.limits,
       } : null,
     }
-    setCached(cacheKey, payload, TTL.SETTINGS)
     return NextResponse.json(payload, {
       headers: {
-        // s-maxage: Vercel Edge Network caches this for 60s — all concurrent users
-        // on the same tenant URL are served from CDN, no DB hit.
-        // stale-while-revalidate: serve stale for up to 2 min while refreshing in background.
         'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-        'X-Cache': 'MISS',
       },
     })
   } catch (err: any) {
