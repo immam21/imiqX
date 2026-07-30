@@ -53,8 +53,13 @@ export async function GET() {
   const businessName = toDisplayName(sourceName)
   const shortName = toShortName(businessName)
   const routePrefix = String(tenant?.routePrefix || '').trim() || '/'
+  // Unique per-tenant id — this is what browsers use to decide if a PWA is already installed.
+  // Without this, all tenants on the same domain appear as the same app.
+  const tenantSlug = String(tenantRow?.tenant_code || tenantSlugCandidate || tenant?.tenantId || 'default').trim().toLowerCase()
+  const manifestId = routePrefix === '/' ? '/' : `${routePrefix}/`
 
   const manifest = {
+    id: manifestId,
     name: businessName,
     short_name: shortName,
     description: `Shop secure, verified products from ${businessName}.`,

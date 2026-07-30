@@ -12,6 +12,7 @@ export default function PWAProvider() {
   const [showInstallGuide, setShowInstallGuide] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [tenantKey, setTenantKey] = useState('')
 
   // ── Service Worker registration ──────────────────────────
   useEffect(() => {
@@ -32,6 +33,11 @@ export default function PWAProvider() {
         const rawPrefix = document.cookie.split('; ').find((c) => c.startsWith('tenant_path_prefix='))?.split('=')[1]
         const tenantPrefix = decodeURIComponent(rawPrefix || '').trim()
         const swScope = (tenantPrefix && tenantPrefix !== '/') ? `${tenantPrefix}/` : '/'
+        const slug = tenantPrefix && tenantPrefix !== '/' ? tenantPrefix.replace(/^\//,'').split('/')[0] : 'default'
+        setTenantKey(slug)
+        // Load per-tenant dismissed state
+        const wasDismissed = localStorage.getItem(`pwa_dismissed:${slug}`) === '1'
+        if (wasDismissed) setDismissed(true)
         const reg = await navigator.serviceWorker.register('/sw.js', { scope: swScope })
 
         // Listen for a waiting worker (new version available)
@@ -110,6 +116,11 @@ export default function PWAProvider() {
     setShowInstallGuide(true)
   }, [])
 
+  const handleDismiss = useCallback(() => {
+    setDismissed(true)
+    if (tenantKey) localStorage.setItem(`pwa_dismissed:${tenantKey}`, '1')
+  }, [tenantKey])
+
   const handleUpdate = useCallback(() => {
     setShowUpdate(false)
     // Tell the waiting SW to activate
@@ -180,7 +191,7 @@ export default function PWAProvider() {
                   Close
                 </button>
                 <button
-                  onClick={() => { setShowInstallGuide(false); setDismissed(true) }}
+                  onClick={() => { setShowInstallGuide(false); handleDismiss() }}
                   className="rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-black"
                 >
                   Hide
@@ -226,7 +237,7 @@ export default function PWAProvider() {
                   Install
                 </button>
                 <button
-                  onClick={() => setDismissed(true)}
+                  onClick={handleDismiss}
                   className="rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                   aria-label="Dismiss install prompt"
                 >
@@ -266,10 +277,9 @@ export default function PWAProvider() {
                 </p>
               </div>
               <button
-                onClick={() => setDismissed(true)}
+                onClick={handleDismiss}
                 className="shrink-0 text-slate-400 transition hover:text-slate-600 focus:outline-none"
-                aria-label="Dismiss"
-              >
+                aria-label="Dismiss">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <line x1="18" y1="6" x2="6" y2="18"/>
                   <line x1="6" y1="6" x2="18" y2="18"/>
