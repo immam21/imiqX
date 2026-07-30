@@ -12,14 +12,14 @@ export async function GET(request: Request) {
     const cached = getCached<object[]>(cacheKey)
     if (cached) {
       return NextResponse.json({ products: cached }, {
-        headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'HIT' },
+        headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60', 'X-Cache': 'HIT' },
       })
     }
 
     const products = await fetchProducts(tenant.gsheetId)
     setCached(cacheKey, products, TTL.PRODUCTS)
     return NextResponse.json({ products }, {
-      headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'MISS' },
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60', 'X-Cache': 'MISS' },
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to fetch products' }, { status: 500 })

@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const cached = getCached<object>(cacheKey)
     if (cached) {
       return NextResponse.json(cached, {
-        headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'HIT' },
+        headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120', 'X-Cache': 'HIT' },
       })
     }
 
@@ -77,7 +77,13 @@ export async function GET(request: Request) {
     }
     setCached(cacheKey, payload, TTL.SETTINGS)
     return NextResponse.json(payload, {
-      headers: { 'Cache-Control': 'public, max-age=30', 'X-Cache': 'MISS' },
+      headers: {
+        // s-maxage: Vercel Edge Network caches this for 60s — all concurrent users
+        // on the same tenant URL are served from CDN, no DB hit.
+        // stale-while-revalidate: serve stale for up to 2 min while refreshing in background.
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+        'X-Cache': 'MISS',
+      },
     })
   } catch (err: any) {
     return NextResponse.json(

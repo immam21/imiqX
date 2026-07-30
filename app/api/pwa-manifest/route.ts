@@ -34,7 +34,7 @@ export async function GET() {
   const cachedManifest = getCached<string>(cacheKey)
   if (cachedManifest) {
     return new Response(cachedManifest, {
-      headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'public, max-age=120', 'X-Cache': 'HIT' },
+      headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300', 'X-Cache': 'HIT' },
     })
   }
 
@@ -149,7 +149,7 @@ export async function GET() {
   return new Response(manifestJson, {
     headers: {
       'Content-Type': 'application/manifest+json; charset=utf-8',
-      'Cache-Control': 'public, max-age=120',
+      'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300',
       'X-Cache': 'MISS',
     },
   })
