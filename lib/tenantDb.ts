@@ -2,7 +2,7 @@ import { getTenantConfig } from './tenant'
 import { getSupabaseAdmin } from './supabaseAdmin'
 import { toRenderableAssetUrl } from './assetUrl'
 import { headers } from 'next/headers'
-import { DEFAULT_FEATURES, normalizeStrictOverrideMap, type SubscriptionFeatureMap } from './subscriptionFeatures'
+import { DEFAULT_FEATURES, mergeFeatureMaps, type SubscriptionFeatureMap } from './subscriptionFeatures'
 
 export type TenantRow = {
   id: string
@@ -538,8 +538,8 @@ export async function getTenantEntitlements(tenantDbId: string): Promise<TenantE
     planId: access.planId,
     planCode,
     planName,
-    // Feature flags are controlled by tenant DB overrides as the source of truth.
-    features: normalizeStrictOverrideMap(featureOverrides),
+    // Feature flags inherit from the assigned plan and can be overridden per tenant.
+    features: mergeFeatureMaps(planFeatures, featureOverrides),
     limits: { ...(planLimits || {}), ...(limitOverrides || {}) },
     featureOverrides,
     limitOverrides,
