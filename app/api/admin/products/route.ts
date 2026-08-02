@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     })
 
     if (error) throw new Error(error.message)
-      revalidatePath('/', 'layout')
+    revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -118,7 +118,7 @@ export async function PATCH(request: Request) {
       .or(`sid.eq.${productId},product_code.eq.${productId},id.eq.${productId}`)
 
     if (error) throw new Error(error.message)
-      revalidatePath('/', 'layout')
+    revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -138,7 +138,7 @@ export async function DELETE(request: Request) {
       .eq('tenant_id', auth.tenantDbId)
       .or(`sid.eq.${productId},product_code.eq.${productId},id.eq.${productId}`)
     if (error) throw new Error(error.message)
-      revalidatePath('/', 'layout')
+    revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

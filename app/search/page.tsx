@@ -34,7 +34,8 @@ export default function SearchPage() {
 
   useEffect(() => {
     let mounted = true
-    fetch('/api/products')
+    const apiPath = tenantPrefix ? `${tenantPrefix}/api/products` : '/api/products'
+    fetch(apiPath)
       .then((r) => r.json())
       .then((data) => {
         if (mounted) setProducts(data.products || [])
@@ -42,7 +43,7 @@ export default function SearchPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantPrefix])
 
   const categories = useMemo(() => Array.from(new Set(products.map((p) => p.category || 'Uncategorized'))).slice(0, 12), [products])
 

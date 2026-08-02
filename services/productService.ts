@@ -2,7 +2,6 @@ import { getSupabaseAdmin } from '../lib/supabaseAdmin'
 import { getTenantRowFromRequest, getTenantSettings } from '../lib/tenantDb'
 import { getTenantConfig } from '../lib/tenant'
 import { toRenderableAssetUrl } from '../lib/assetUrl'
-import { unstable_cache } from 'next/cache'
 
 function isTransientServiceError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '')
@@ -135,9 +134,8 @@ async function loadTenantProducts(supabase: any, tenantId: string) {
   return query
 }
 
-// Wrap fetchProducts with unstable_cache (Vercel Data Cache) for 30s
-const _fetchProductsCached = unstable_cache(
-  async () => {
+export async function fetchProducts(_tenantKey?: string) {
+  try {
     const { data, error } = await withTransientRetry(async () => {
       const { supabase, tenant } = await getTenantDb()
       return loadTenantProducts(supabase, tenant.id)
@@ -145,14 +143,6 @@ const _fetchProductsCached = unstable_cache(
 
     if (error) throw new Error(error.message)
     return (data || []).map(mapProduct)
-  },
-  ['products'],  // Cache key
-  { revalidate: 30, tags: ['products'] }
-)
-
-export async function fetchProducts(_tenantKey?: string) {
-  try {
-    return await _fetchProductsCached()
   } catch (error) {
     console.error('fetchProducts failed:', error)
     return []
@@ -214,9 +204,19 @@ export async function searchProducts(query: string, _tenantKey?: string) {
   }
 }
 
-// Wrap fetchSettings with unstable_cache (Vercel Data Cache) for 60s
-const _fetchSettingsCached = unstable_cache(
-  async () => {
+export async function fetchSettings(_tenantKey?: string): Promise<{
+  businessName: string
+  businessAddress: string
+  whatsappNumber: string
+  themePreset: string
+  offerLabel: string
+  offerTitle: string
+  offerSubtitle: string
+  announcementMessages: string[]
+  deliveryCharge: number
+  logoUrl: string
+}> {
+  try {
     const { tenant } = await getTenantDb()
     const kv = await getTenantSettings(tenant.id)
     const rawBar = kv['AnnouncementBar'] ?? ''
@@ -236,25 +236,6 @@ const _fetchSettingsCached = unstable_cache(
       deliveryCharge: Number(kv['DeliveryCharge']) || Number(tenant.default_delivery_charge || 40),
       logoUrl: toRenderableAssetUrl(kv['LogoURL'] || ''),
     }
-  },
-  ['settings'],  // Cache key
-  { revalidate: 60, tags: ['settings'] }
-)
-
-export async function fetchSettings(_tenantKey?: string): Promise<{
-  businessName: string
-  businessAddress: string
-  whatsappNumber: string
-  themePreset: string
-  offerLabel: string
-  offerTitle: string
-  offerSubtitle: string
-  announcementMessages: string[]
-  deliveryCharge: number
-  logoUrl: string
-}> {
-  try {
-    return await _fetchSettingsCached()
   } catch {
     return {
       businessName: '',
