@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { unstable_cache } from 'next/cache'
 import { fetchSettings } from '../../../services/productService'
 import { getTenantConfig } from '../../../lib/tenant'
 import { getTenantBusinessProfile, getTenantEntitlements, getTenantRowFromRequest, getTenantSettings } from '../../../lib/tenantDb'
 
-export const dynamic = 'force-dynamic'
+// ISR: Edge caches for 60s, then revalidates in background
+export const revalidate = 60
 
 function toDisplayName(input: string) {
   const value = String(input || '').trim()
@@ -17,42 +17,26 @@ function toDisplayName(input: string) {
     .join(' ')
 }
 
-function buildSettingsLoader(tenantId: string, gsheetId: string) {
-  return unstable_cache(
-    async () => fetchSettings(gsheetId).catch(() => ({} as Record<string, string>)),
-    [`settings-sheets:${tenantId}`],
-    { revalidate: 60, tags: [`tenant:${tenantId}`, 'settings'] }
-  )
-}
-
-function buildTenantDbLoader(tenantId: string, tenantRowId: string) {
-  return unstable_cache(
-    async () => Promise.all([
-      getTenantSettings(tenantRowId).catch(() => ({} as Record<string, string>)),
-      getTenantBusinessProfile(tenantRowId).catch(() => null),
-      getTenantEntitlements(tenantRowId).catch(() => null),
-    ]),
-    [`settings-db:${tenantId}`],
-    { revalidate: 60, tags: [`tenant:${tenantId}`, 'settings'] }
-  )
-}
 
 export async function GET(request: Request) {
   try {
     const tenant = await getTenantConfig()
     const tenantId = tenant.tenantId || 'default'
 
-    // unstable_cache is shared across ALL Vercel serverless instances —
-    // first request hits Supabase + Sheets; all others return from Data Cache
     const tenantRow = await getTenantRowFromRequest().catch(() => null)
 
-    const [settings, dbTuple] = await Promise.all([
-      buildSettingsLoader(tenantId, tenant.gsheetId)(),
+    const [settings, tenantSettings, tenantProfile, entitlements] = await Promise.all([
+      fetchSettings(tenant.gsheetId).catch(() => ({} as Record<string, string>)),
       tenantRow
-        ? buildTenantDbLoader(tenantId, tenantRow.id)()
-        : Promise.resolve([{} as Record<string, string>, null, null] as const),
+        ? getTenantSettings(tenantRow.id).catch(() => ({} as Record<string, string>))
+        : Promise.resolve({} as Record<string, string>),
+      tenantRow
+        ? getTenantBusinessProfile(tenantRow.id).catch(() => null)
+        : Promise.resolve(null),
+      tenantRow
+        ? getTenantEntitlements(tenantRow.id).catch(() => null)
+        : Promise.resolve(null),
     ])
-    const [tenantSettings, tenantProfile, entitlements] = dbTuple as [Record<string, string>, import('../../../lib/tenantDb').TenantBusinessProfile | null, import('../../../lib/tenantDb').TenantEntitlements | null]
     const businessType = String(tenantSettings.BusinessType || tenantSettings.businessType || 'ecommerce_product').trim().toLowerCase() === 'ecommerce_services'
       ? 'ecommerce_services'
       : 'ecommerce_product'

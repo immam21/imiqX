@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",
+    "@vercel/kv": "^3.0.0",
     "bcryptjs": "^3.0.3",
     "clsx": "1.2.1",
     "framer-motion": "10.12.16",
