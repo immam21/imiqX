@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAdminRequest } from '../../../../lib/adminAuth'
 import { getSupabaseAdmin } from '../../../../lib/supabaseAdmin'
 import { toRenderableAssetUrl } from '../../../../lib/assetUrl'
+import { revalidatePath } from 'next/cache'
 
 function imageArray(value: unknown) {
   if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean)
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     })
 
     if (error) throw new Error(error.message)
+      revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -116,6 +118,7 @@ export async function PATCH(request: Request) {
       .or(`sid.eq.${productId},product_code.eq.${productId},id.eq.${productId}`)
 
     if (error) throw new Error(error.message)
+      revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -135,6 +138,7 @@ export async function DELETE(request: Request) {
       .eq('tenant_id', auth.tenantDbId)
       .or(`sid.eq.${productId},product_code.eq.${productId},id.eq.${productId}`)
     if (error) throw new Error(error.message)
+      revalidatePath('/', 'layout')
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
